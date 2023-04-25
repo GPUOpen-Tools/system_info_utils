@@ -1,0 +1,24 @@
+//=============================================================================
+// Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.
+/// @author AMD Developer Tools Team
+/// @file
+/// @brief System info version header
+//=============================================================================
+
+#ifndef SYSTEM_INFO_VERSION_H_
+#define SYSTEM_INFO_VERSION_H_
+
+#define STRINGIFY_MACRO_(a) #a
+#define STRINGIFY_MACRO(a) STRINGIFY_MACRO_(a)
+#define STRINGIFY_VERSION(major, minor, patch, build) STRINGIFY_MACRO(v) STRINGIFY_MACRO(major) "." STRINGIFY_MACRO(minor) "." STRINGIFY_MACRO(patch) "." STRINGIFY_MACRO(build)
+
+#define SYSTEM_INFO_MAJOR_VERSION @SYSTEM_INFO_MAJOR_VERSION@  ///< Major version number.
+#define SYSTEM_INFO_MINOR_VERSION @SYSTEM_INFO_MINOR_VERSION@  ///< Minor version number.
+#define SYSTEM_INFO_PATCH_NUMBER  @SYSTEM_INFO_PATCH_NUMBER@   ///< Patch number.
+#define SYSTEM_INFO_BUILD_NUMBER  @SYSTEM_INFO_BUILD_NUMBER@   ///< Build number.
+#define SYSTEM_INFO_BUILD_SUFFIX  @SYSTEM_INFO_BUILD_SUFFIX@   ///< Build suffix
+#define SYSTEM_INFO_BUILD_DATE_STRING @DATE@
+#define SYSTEM_INFO_BUILD_YEAR @YEAR@
+#define SYSTEM_INFO_VERSION STRINGIFY_VERSION(SYSTEM_INFO_MAJOR_VERSION, SYSTEM_INFO_MINOR_VERSION, SYSTEM_INFO_PATCH_NUMBER, SYSTEM_INFO_BUILD_NUMBER)
+
+#endif
