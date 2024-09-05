@@ -1,11 +1,14 @@
 //=============================================================================
-// Copyright (c) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief System info reader implementation
 //=============================================================================
 
 #include "system_info_reader.h"
+
+#include <cstdint>
+#include <sstream>
 
 #include "json.hpp"
 
@@ -127,9 +130,10 @@ namespace system_info_utils
         /// @param [in, out] etw_info The structure to be populated with the parsed ETW info.
         virtual void ProcessEtwNode(const nlohmann::json& etw_root, EtwSupportInfo& etw_info)
         {
-            etw_info.is_supported   = Get<bool>(etw_root, kNodeStringSupported, false);
-            etw_info.has_permission = Get<bool>(etw_root, kNodeStringHasPermission, false);
-            etw_info.status_code    = Get<unsigned long>(etw_root, kNodeStringStatusCode, 0);
+            etw_info.is_supported                    = Get<bool>(etw_root, kNodeStringSupported, false);
+            etw_info.has_permission                  = Get<bool>(etw_root, kNodeStringHasPermission, false);
+            etw_info.status_code                     = Get<unsigned long>(etw_root, kNodeStringStatusCode, 0);
+            etw_info.needs_rgp_registry_or_usergroup = Get<bool>(etw_root, kNodeStringEtwRegistryOrUserGroup, false);
         }
 
         /// @brief Process the Operating System info JSON node.
@@ -211,6 +215,8 @@ namespace system_info_utils
                     cpu.max_clock_speed                  = Get<uint32_t>(cpu_speed_node, kNodeStringMax, 0);
                 }
 
+                cpu.timestamp_clock_frequency = Get<uint64_t>(cpu_node, kNodeStringCpuTimeClockFreq, 0);
+
                 cpus.push_back(cpu);
             }
         }
@@ -224,6 +230,38 @@ namespace system_info_utils
             pci_info.bus      = Get<uint32_t>(pci_root, kNodeStringPciBus, 0);
             pci_info.device   = Get<uint32_t>(pci_root, kNodeStringDevice, 0);
             pci_info.function = Get<uint32_t>(pci_root, kNodeStringPciFunction, 0);
+        }
+
+        /// @brief Processes the CU mask list.
+        /// @param [in] cu_mask_root The json node that has the CU mask.
+        /// @param [in, out] asicInfo The structure to be populated with the parsed CU mask.
+        virtual void ProcessCuMaskNode(const nlohmann::json& cu_mask_root, AsicInfo& asicInfo)
+        {
+            if (!cu_mask_root.is_array())
+            {
+                return;
+            }
+
+            for (const auto& shader_array_list : cu_mask_root)
+            {
+                if (!shader_array_list.is_array())
+                {
+                    asicInfo.cu_mask.clear();
+                    return;
+                }
+
+                auto& shader_array_masks = asicInfo.cu_mask.emplace_back();
+                for (const auto& shader_array_mask_item : shader_array_list)
+                {
+                    if (!shader_array_mask_item.is_number_unsigned())
+                    {
+                        asicInfo.cu_mask.clear();
+                        return;
+                    }
+
+                    shader_array_masks.push_back(shader_array_mask_item.get<uint32_t>());
+                }
+            }
         }
 
         /// @brief Process the clock frequency info JSON node.
@@ -247,6 +285,17 @@ namespace system_info_utils
             asic_id_info.e_rev      = Get<uint32_t>(asic_id_info_root, kNodeStringAsicERev, 0);
             asic_id_info.revision   = Get<uint32_t>(asic_id_info_root, kNodeStringAsicRevision, 0);
             asic_id_info.device     = Get<uint32_t>(asic_id_info_root, kNodeStringDevice, 0);
+            asic_id_info.subsystem  = Get<uint32_t>(asic_id_info_root, kNodeStringAsicSubsystem, 0);
+            asic_id_info.vendor     = Get<uint32_t>(asic_id_info_root, kNodeStringAsicVendor, 0);
+
+            const std::string luid_str = Get<std::string>(asic_id_info_root, kNodeStringAsicLuid, "");
+            memset(asic_id_info.luid, 0, sizeof(asic_id_info.luid));
+
+            for (size_t i = 0; i < luid_str.length(); i += 2)
+            {
+                const std::string byte_str = luid_str.substr(i, 2);
+                asic_id_info.luid[i / 2]   = static_cast<uint8_t>(strtol(byte_str.c_str(), nullptr, 16));
+            }
         }
 
         /// @brief Process an individual GPU's ASIC info JSON node.
@@ -257,7 +306,15 @@ namespace system_info_utils
         {
             asic_info.gpu_index        = Get<uint32_t>(asic_root, kNodeStringAsicGpuIndex, static_cast<uint32_t>(-1));
             asic_info.gpu_counter_freq = Get<uint32_t>(asic_root, kNodeStringAsicGpuCounterFrequency, 0);
-            asic_info.num_cus          = Get<uint32_t>(asic_root, kNodeStringAsicNumCus, 0);
+
+            asic_info.num_shader_engines           = Get<uint32_t>(asic_root, kNodeStringAsicNumSe, 0);
+            asic_info.num_shader_arrays_per_engine = Get<uint32_t>(asic_root, kNodeStringAsicNumSaPerSe, 0);
+            asic_info.num_cus                      = Get<uint32_t>(asic_root, kNodeStringAsicNumCus, 0);
+
+            if (DoesNodeExist(asic_root, kNodeStringAsicCuMask))
+            {
+                ProcessCuMaskNode(asic_root[kNodeStringAsicCuMask], asic_info);
+            }
 
             if (DoesNodeExist(asic_root, kNodeStringAsicEngineClockSpeed))
             {
@@ -540,8 +597,6 @@ namespace system_info_utils
 
     std::string SystemInfoReader::Parse(const std::string& json)
     {
-        bool result = true;
-
         SYSTEM_INFO_TRY
         {
             nlohmann::json structure = nlohmann::json::parse(json);

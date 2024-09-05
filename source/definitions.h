@@ -1,5 +1,5 @@
 //=============================================================================
-// Copyright (c) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief JSON key definitions
@@ -63,6 +63,7 @@ static constexpr const char* kNodeStringProcessId               = "processId";
 static constexpr const char* kNodeStringPath                    = "path";
 static constexpr const char* kNodeStringArchitecture            = "architecture";
 static constexpr const char* kNodeStringCpuVendorId             = "vendorId";
+static constexpr const char* kNodeStringCpuTimeClockFreq        = "cpuTimeClockFreq";
 static constexpr const char* kNodeStringCpuPhysicalCoreCount    = "numPhysicalCores";
 static constexpr const char* kNodeStringCpuLogicalCoreCount     = "numLogicalCores";
 static constexpr const char* kNodeStringSpeed                   = "speed";
@@ -76,6 +77,9 @@ static constexpr const char* kNodeStringPciFunction             = "function";
 static constexpr const char* kNodeStringAsic                    = "asic";
 static constexpr const char* kNodeStringAsicGpuIndex            = "gpuIndex";
 static constexpr const char* kNodeStringAsicGpuCounterFrequency = "gpuCounterFreq";
+static constexpr const char* kNodeStringAsicNumSe               = "numShaderEngines";
+static constexpr const char* kNodeStringAsicNumSaPerSe          = "numShaderArraysPerEngine";
+static constexpr const char* kNodeStringAsicCuMask              = "cuMask";
 static constexpr const char* kNodeStringAsicNumCus              = "numCus";
 static constexpr const char* kNodeStringAsicEngineClockSpeed    = "engineClockHz";
 static constexpr const char* kNodeStringMin                     = "min";
@@ -85,6 +89,9 @@ static constexpr const char* kNodeStringAsicGfxEngine           = "gfxEngine";
 static constexpr const char* kNodeStringAsicFamily              = "family";
 static constexpr const char* kNodeStringAsicERev                = "eRev";
 static constexpr const char* kNodeStringAsicRevision            = "revision";
+static constexpr const char* kNodeStringAsicSubsystem           = "subsystem";
+static constexpr const char* kNodeStringAsicVendor              = "vendor";
+static constexpr const char* kNodeStringAsicLuid                = "luid";
 static constexpr const char* kNodeStringMemoryOpsPerClock       = "memOpsPerClock";
 static constexpr const char* kNodeStringMemoryBusBitWidth       = "busBitWidth";
 static constexpr const char* kNodeStringMemoryBandwith          = "bandwidthBytesPerSec";
@@ -108,6 +115,7 @@ static constexpr const char* kNodeStringDrm                     = "drm";
 static constexpr const char* kNodeStringIsClosedSource          = "isClosedSource";
 static constexpr const char* kNodeStringEtwSupport              = "etwSupport";
 static constexpr const char* kNodeStringSupported               = "isSupported";
+static constexpr const char* kNodeStringEtwRegistryOrUserGroup  = "needsRegistryOrUserGroup";
 static constexpr const char* kNodeStringHasPermission           = "hasPermission";
 static constexpr const char* kNodeStringStatusCode              = "statusCode";
 static constexpr const char* kNodeStringPowerDpmWritable        = "powerDpmWritable";

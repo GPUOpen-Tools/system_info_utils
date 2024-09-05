@@ -1,5 +1,5 @@
 #######################################################################################################################
-### Copyright (c) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+### Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 #######################################################################################################################
 
 cmake_minimum_required(VERSION 3.16)
@@ -25,6 +25,13 @@ option(SYSTEM_INFO_BUILD_RDF_INTERFACES "Build with rdf interfaces for read and 
 if (WIN32)
     # wmi library
     add_subdirectory(source/third_party/wmi)
+
+    if (MSVC)
+        target_compile_options(wmi
+            PRIVATE
+                "/wd4244" # disable conversion warnings
+        )
+    endif()
 endif ()
 
 # System Info reader/writer
@@ -47,4 +54,8 @@ if (SYSTEM_INFO_ENABLE_PACKAGING)
     cpack_add_component(system_info_api
             DISPLAY_NAME "System Info API"
             DESCRIPTION "System info API for use by applications needing to parse system info chunks.")
+
+    cpack_add_component(driver_overrides_api
+            DISPLAY_NAME "Driver Overrides API"
+            DESCRIPTION "Driver Overrides API for use by applications needing to parse DriverOverrides chunk.")
 endif ()

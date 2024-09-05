@@ -1,5 +1,5 @@
 //=============================================================================
-// Copyright (c) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief System info reader definition
@@ -8,6 +8,7 @@
 #ifndef SYSTEM_INFO_UTILS_SOURCE_SYSTEM_INFO_READER_H_
 #define SYSTEM_INFO_UTILS_SOURCE_SYSTEM_INFO_READER_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -44,9 +45,10 @@ namespace system_info_utils
     /// @brief Structure containing the Event Tracing for Windows information.
     struct EtwSupportInfo
     {
-        bool     is_supported;    ///< The flag indicating whether ETW is supported.
-        bool     has_permission;  ///< The flag indicating whether the account has permission to open an ETW session.
-        uint32_t status_code;     ///< The ETW status code received when attempting to open a session.
+        bool     is_supported;                     ///< The flag indicating whether ETW is supported.
+        bool     has_permission;                   ///< The flag indicating whether the account has permission to open an ETW session.
+        uint32_t status_code;                      ///< The ETW status code received when attempting to open a session.
+        bool     needs_rgp_registry_or_usergroup;  ///< The flag indicating registry or usergroup settings for RGP ETW capture needs setting.
     };
 
     /// @brief Structure containing the system's configuration info.
@@ -71,15 +73,16 @@ namespace system_info_utils
     /// @brief Structure containing CPU info for the system.
     struct CpuInfo
     {
-        std::string name;                ///< The CPU name ("AMD Ryzen 7 2700X Eight-Core Processor")
-        std::string cpu_id;              ///< The CPU identifier ("AM64 Family 23 Model 8 Stepping 2" etc.)
-        std::string device_id;           ///< The CPU slot identifier ("CPUO", "CPU1", etc)
-        std::string architecture;        ///< The CPU architecture
-        std::string vendor_id;           ///< "AuthenticAMD" etc..
-        std::string virtualization;      ///< The CPU has virtualization firmware enabled state
-        uint32_t    num_physical_cores;  ///< The CPU physical core count
-        uint32_t    num_logical_cores;   ///< The CPU logical core count
-        uint32_t    max_clock_speed;     ///< The maximum CPU clock speed in MHz
+        std::string name;                       ///< The CPU name ("AMD Ryzen 7 2700X Eight-Core Processor")
+        std::string cpu_id;                     ///< The CPU identifier ("AM64 Family 23 Model 8 Stepping 2" etc.)
+        std::string device_id;                  ///< The CPU slot identifier ("CPUO", "CPU1", etc)
+        std::string architecture;               ///< The CPU architecture
+        std::string vendor_id;                  ///< "AuthenticAMD" etc..
+        std::string virtualization;             ///< The CPU has virtualization firmware enabled state
+        uint32_t    num_physical_cores;         ///< The CPU physical core count
+        uint32_t    num_logical_cores;          ///< The CPU logical core count
+        uint32_t    max_clock_speed;            ///< The maximum CPU clock speed in MHz
+        uint64_t    timestamp_clock_frequency;  ///< The CPU timestamp clock frequency in Hz
     };
 
     /// @brief Structure containing a single GPU's PCI connection info.
@@ -105,6 +108,9 @@ namespace system_info_utils
         uint32_t e_rev;       ///< The hardware revision id.
         uint32_t revision;    ///< The PCI revision ID.
         uint32_t device;      ///< The PCI device ID.
+        uint32_t subsystem;   ///< The PCI ID or ACPI ID of the adapter's hardware subsystem.
+        uint32_t vendor;      ///< The PCI ID or ACPI ID of the adapter's hardware vendor.
+        uint8_t  luid[8];     ///< The locally unique identifier for the adapter.
     };
 
     /// @brief Structure containing physical hardware identification info.
@@ -113,8 +119,17 @@ namespace system_info_utils
         uint32_t  gpu_index;         ///< The index of the GPU as enumerated by the system.
         uint64_t  gpu_counter_freq;  ///< The GPU counter frequency in ticks.
         ClockInfo engine_clock_hz;   ///< The GPU engine clock info in Hz.
-        uint32_t  num_cus;           ///< The number of compute units on the GPU.
-        IdInfo    id_info;           ///< The hardware info, used to uniquely identify a GPU in the system.
+
+        uint32_t num_shader_engines;            ///< The number of shader engines on the GPU.
+        uint32_t num_shader_arrays_per_engine;  ///< The number of shader arrays per shader engine on the GPU.
+
+        /// @brief The mask that describes the active CUs on the GPU.
+        ///
+        /// The mask is organized by shader engine index first and then the shader array within the engine.
+        std::vector<std::vector<uint32_t>> cu_mask;
+        uint32_t                           num_cus;  ///< The number of compute units on the GPU.
+
+        IdInfo id_info;  ///< The hardware info, used to uniquely identify a GPU in the system.
     };
 
     /// @brief Structure containing GPU memory heap identification info.
