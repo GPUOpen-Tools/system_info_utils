@@ -1,5 +1,5 @@
 //=============================================================================
-// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief System info reader definition
@@ -86,11 +86,16 @@ namespace system_info_utils
     };
 
     /// @brief Structure containing a single GPU's PCI connection info.
-    struct PciInfo
+    union PciInfo
     {
-        uint32_t bus;       ///< The device bus number.
-        uint32_t device;    ///< The device number.
-        uint32_t function;  ///< The device function number.
+        struct
+        {
+            uint32_t function : 8;  ///< PCI function number in the system for this GPU.
+            uint32_t device : 8;    ///< PCI device number in the system for this GPU.
+            uint32_t bus : 8;       ///< PCI bus number in the system for this GPU.
+            uint32_t reserved : 8;  ///< Reserved for future use.
+        };
+        uint32_t id;  ///< Fields packed as 32-bit uint identifier.
     };
 
     /// @brief Structure containing clock timestamp info.

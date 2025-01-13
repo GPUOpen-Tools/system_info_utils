@@ -1,5 +1,5 @@
 //=============================================================================
-// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief System info reader implementation
@@ -227,6 +227,7 @@ namespace system_info_utils
         /// @param [in, out] pci_info The structure to be populated with the parsed PCI info.
         virtual void ProcessGpuPciNode(const nlohmann::json& pci_root, PciInfo& pci_info)
         {
+            pci_info.id       = 0;
             pci_info.bus      = Get<uint32_t>(pci_root, kNodeStringPciBus, 0);
             pci_info.device   = Get<uint32_t>(pci_root, kNodeStringDevice, 0);
             pci_info.function = Get<uint32_t>(pci_root, kNodeStringPciFunction, 0);
