@@ -456,7 +456,17 @@ namespace system_info_utils
             driver.description       = Get<std::string>(driver_node, kNodeStringDescription, "");
             driver.software_version  = Get<std::string>(driver_node, kNodeStringDriverSoftwareVersion, "");
             driver.packaging_version = Get<std::string>(driver_node, kNodeStringDriverPackagingVersion, "");
-            driver.is_closed_source  = Get<bool>(driver_node, kNodeStringIsClosedSource, false);
+
+            if (DoesNodeExist(driver_node, kNodeStringDriverPackagingDate))
+            {
+                driver.packaging_date = Get<std::string>(driver_node, kNodeStringDriverPackagingDate, "");
+            }
+            else
+            {
+                driver.packaging_date = std::nullopt;
+            }
+
+            driver.is_closed_source = Get<bool>(driver_node, kNodeStringIsClosedSource, false);
 
             // Parse major and minor
             if (!driver.packaging_version.empty())

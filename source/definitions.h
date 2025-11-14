@@ -49,6 +49,7 @@ static constexpr const char* kNodeStringName                    = "name";
 static constexpr const char* kNodeStringDescription             = "description";
 static constexpr const char* kNodeStringVersion                 = "version";
 static constexpr const char* kNodeStringDriverPackagingVersion  = "packagingVersion";
+static constexpr const char* kNodeStringDriverPackagingDate     = "packagingDate";
 static constexpr const char* kNodeStringDriverSoftwareVersion   = "softwareVersion";
 static constexpr const char* kNodeStringOs                      = "os";
 static constexpr const char* kNodeStringVirtualization          = "virtualization";

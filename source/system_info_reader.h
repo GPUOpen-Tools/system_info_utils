@@ -9,6 +9,7 @@
 #define SYSTEM_INFO_UTILS_SOURCE_SYSTEM_INFO_READER_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -193,13 +194,14 @@ namespace system_info_utils
     /// @brief Structure containing the driver software info.
     struct DriverInfo
     {
-        uint32_t    packaging_version_major;  ///< The driver packaging major version
-        uint32_t    packaging_version_minor;  ///< The driver packaging minor version
-        std::string name;                     ///< The driver name
-        std::string description;              ///< The driver description
-        std::string packaging_version;        ///< The driver packaging version string.
-        std::string software_version;         ///< The driver software version string. (Windows platform specific)
-        bool        is_closed_source;         ///< Flag if driver is PRO (closed source)
+        uint32_t                   packaging_version_major;  ///< The driver packaging major version
+        uint32_t                   packaging_version_minor;  ///< The driver packaging minor version
+        std::string                name;                     ///< The driver name
+        std::string                description;              ///< The driver description
+        std::string                packaging_version;        ///< The driver packaging version string.
+        std::optional<std::string> packaging_date;           ///< The driver packaging date. (YY/MM/DD) (optional as it may not be available).
+        std::string                software_version;         ///< The driver software version string. (Windows platform specific)
+        bool                       is_closed_source;         ///< Flag if driver is PRO (closed source)
     };
 
     /// @brief Structure containing fields used to identify the target system's hardware and software.
