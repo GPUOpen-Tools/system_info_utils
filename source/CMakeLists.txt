@@ -12,7 +12,7 @@ add_library(${PROJECT_NAME} STATIC
         driver_overrides_reader.h
         driver_overrides_reader.cpp)
 set_target_properties(${PROJECT_NAME} PROPERTIES
-        CXX_STANDARD 17
+        CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON)
 
 if (SYSTEM_INFO_BUILD_RDF_INTERFACES)
@@ -27,7 +27,10 @@ if (WIN32)
 endif()
 
 target_include_directories(${PROJECT_NAME}
-        PUBLIC . ./third_party/json/include/)
+        PUBLIC .)
+target_include_directories(${PROJECT_NAME}
+        SYSTEM PUBLIC ./third_party/rapidjson/include/)
+target_link_libraries(${PROJECT_NAME} PRIVATE rapidjson)
 
 if (SYSTEM_INFO_ENABLE_PACKAGING)
     install(TARGETS ${PROJECT_NAME}

@@ -21,10 +21,18 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Buildinfo.properties.in" "${CMAKE_CU
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/source/version.h")
 
 option(SYSTEM_INFO_BUILD_RDF_INTERFACES "Build with rdf interfaces for read and write." OFF)
+option(SYSTEM_INFO_ENABLE_PACKAGING "Enable packaging using CPack" OFF)
+option(DRIVER_OVERRIDES_ENABLE_PACKAGING "Enable packaging using CPack" OFF)
 
 if (WIN32)
     # wmi library
     add_subdirectory(source/third_party/wmi)
+
+    # Suppress warnings in third-party wmi code we don't want to modify.
+    target_compile_definitions(wmi
+        PRIVATE
+            _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+    )
 
     if (MSVC)
         target_compile_options(wmi
@@ -32,6 +40,11 @@ if (WIN32)
                 "/wd4244" # disable conversion warnings
         )
     endif()
+endif ()
+
+# rapidjson library
+if (NOT TARGET rapidjson)
+    add_subdirectory(source/third_party/rapidjson)
 endif ()
 
 # System Info reader/writer

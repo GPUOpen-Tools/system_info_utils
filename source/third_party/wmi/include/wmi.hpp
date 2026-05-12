@@ -11,6 +11,7 @@
 #include <string>
 #include <type_traits>
 
+#include <tl/expected.hpp>
 #include <wmiexception.hpp>
 #include <wmiresult.hpp>
 
@@ -32,55 +33,63 @@ namespace Wmi
 	   return WmiClass::getWmiPath();
 	}
 
-	void query(const std::string& q, const std::string& p, WmiResult &out);
+	tl::expected<void, WmiException> query(const std::string& q, const std::string& p, WmiResult &out);
 
-	inline WmiResult query(const std::string& q, const std::string& p)
+	inline tl::expected<WmiResult, WmiException> query(const std::string& q, const std::string& p)
 	{
 		WmiResult result;
-		query(q, p, result);
+		auto status = query(q, p, result);
+		if (!status) return tl::unexpected(status.error());
 		return result;
 	}
 
 	template <class WmiClass>
-	inline void retrieveWmi(WmiClass &out)
+	inline tl::expected<void, WmiException> retrieveWmi(WmiClass &out)
 	{
 		WmiResult result;
 		const std::string q = std::string("Select * From ") + WmiClass::getWmiClassName();
-		query(q, CallGetWmiPath<WmiClass>(0), result);
+		auto status = query(q, CallGetWmiPath<WmiClass>(0), result);
+		if (!status) return tl::unexpected(status.error());
 		out.setProperties(result, 0);
+		return {};
 	}
 
 	template <class WmiClass>
-	inline void retrieveWmi(WmiClass &out, std::string columns)
+	inline tl::expected<void, WmiException> retrieveWmi(WmiClass &out, std::string columns)
 	{
 		WmiResult result;
 		const std::string q = std::string("Select ") + columns + std::string(" From ") + WmiClass::getWmiClassName();
-		query(q, CallGetWmiPath<WmiClass>(0), result);
+		auto status = query(q, CallGetWmiPath<WmiClass>(0), result);
+		if (!status) return tl::unexpected(status.error());
 		out.setProperties(result, 0);
+		return {};
 	}
 
 	template <class WmiClass>
-	inline WmiClass retrieveWmi()
+	inline tl::expected<WmiClass, WmiException> retrieveWmi()
 	{
 		WmiClass temp;
-		retrieveWmi(temp);
+		auto status = retrieveWmi(temp);
+		if (!status) return tl::unexpected(status.error());
 		return temp;
 	}
 
 	template <class WmiClass>
-	inline WmiClass retrieveWmi(std::string columns)
+	inline tl::expected<WmiClass, WmiException> retrieveWmi(std::string columns)
 	{
 		WmiClass temp;
-		retrieveWmi(temp, columns);
+		auto status = retrieveWmi(temp, columns);
+		if (!status) return tl::unexpected(status.error());
 		return temp;
 	}
 
 	template <class WmiClass>
-	inline void retrieveAllWmi(std::vector<WmiClass> &out)
+	inline tl::expected<void, WmiException> retrieveAllWmi(std::vector<WmiClass> &out)
 	{
 		WmiResult result;
 		const std::string q = std::string("Select * From ") + WmiClass::getWmiClassName();
-		query(q, CallGetWmiPath<WmiClass>(0), result);
+		auto status = query(q, CallGetWmiPath<WmiClass>(0), result);
+		if (!status) return tl::unexpected(status.error());
 
 		out.clear();
 		for(std::size_t index = 0; index < result.size(); ++index)
@@ -89,14 +98,16 @@ namespace Wmi
 			temp.setProperties(result, index);
 			out.push_back(std::move(temp));
 		}
+		return {};
 	}
 
 	template <class WmiClass>
-	inline void retrieveAllWmi(std::vector<WmiClass> &out, std::string columns)
+	inline tl::expected<void, WmiException> retrieveAllWmi(std::vector<WmiClass> &out, std::string columns)
 	{
 		WmiResult result;
 		const std::string q = std::string("Select ") + columns + std::string(" From ") + WmiClass::getWmiClassName();
-		query(q, CallGetWmiPath<WmiClass>(0), result);
+		auto status = query(q, CallGetWmiPath<WmiClass>(0), result);
+		if (!status) return tl::unexpected(status.error());
 
 		out.clear();
 		for(std::size_t index = 0; index < result.size(); ++index)
@@ -105,23 +116,24 @@ namespace Wmi
 			temp.setProperties(result, index);
 			out.push_back(std::move(temp));
 		}
+		return {};
 	}
 
 	template <class WmiClass>
-	inline std::vector<WmiClass> retrieveAllWmi()
+	inline tl::expected<std::vector<WmiClass>, WmiException> retrieveAllWmi()
 	{
 		std::vector<WmiClass> ret;
-		retrieveAllWmi(ret);
-
+		auto status = retrieveAllWmi(ret);
+		if (!status) return tl::unexpected(status.error());
 		return ret;
 	}
 
 	template <class WmiClass>
-	inline std::vector<WmiClass> retrieveAllWmi(std::string columns)
+	inline tl::expected<std::vector<WmiClass>, WmiException> retrieveAllWmi(std::string columns)
 	{
 		std::vector<WmiClass> ret;
-		retrieveAllWmi(ret, columns);
-
+		auto status = retrieveAllWmi(ret, columns);
+		if (!status) return tl::unexpected(status.error());
 		return ret;
 	}
 

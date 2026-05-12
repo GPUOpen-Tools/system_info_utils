@@ -8,36 +8,7 @@
 #ifndef SYSTEM_INFO_UTILS_SOURCE_DEFINITIONS_H_
 #define SYSTEM_INFO_UTILS_SOURCE_DEFINITIONS_H_
 
-#if defined(__clang__)
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-#define SYSTEM_INFO_THROW(exception) throw exception
-#define SYSTEM_INFO_TRY try
-#define SYSTEM_INFO_CATCH(exception) catch (exception)
 #define SYSTEM_INFO_UNUSED(x) (void)(x)
-#else
-#include <cstdlib>
-#define SYSTEM_INFO_THROW(exception) std::abort()
-#define SYSTEM_INFO_TRY if (true)
-#define SYSTEM_INFO_CATCH(exception) if (false)
-#define SYSTEM_INFO_UNUSED(x)
-#endif
-#else
-#if defined(_MSC_VER)
-#include <vcruntime.h>  // for _HAS_EXCEPTIONS
-#endif
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || (_HAS_EXCEPTIONS)
-#define SYSTEM_INFO_THROW(exception) throw exception
-#define SYSTEM_INFO_TRY try
-#define SYSTEM_INFO_CATCH(exception) catch (exception)
-#define SYSTEM_INFO_UNUSED(x) (void)(x)
-#else
-#include <cstdlib>
-#define SYSTEM_INFO_THROW(exception) std::abort()
-#define SYSTEM_INFO_TRY if (true)
-#define SYSTEM_INFO_CATCH(exception) if (false)
-#define SYSTEM_INFO_UNUSED(x)
-#endif
-#endif
 
 static constexpr const char* kSystemInfoChunkIdentifier = "SystemInfo";
 static constexpr uint32_t    kSystemInfoChunkVersion    = 1;                        ///< Current system info chunk version
@@ -113,13 +84,15 @@ static constexpr const char* kNodeStringBuild                   = "build";
 static constexpr const char* kNodeStringMisc                    = "misc";
 static constexpr const char* kNodeStringConfig                  = "config";
 static constexpr const char* kNodeStringDrm                     = "drm";
-static constexpr const char* kNodeStringIsClosedSource          = "isClosedSource";
 static constexpr const char* kNodeStringEtwSupport              = "etwSupport";
 static constexpr const char* kNodeStringSupported               = "isSupported";
 static constexpr const char* kNodeStringEtwRegistryOrUserGroup  = "needsRegistryOrUserGroup";
 static constexpr const char* kNodeStringHasPermission           = "hasPermission";
 static constexpr const char* kNodeStringStatusCode              = "statusCode";
 static constexpr const char* kNodeStringPowerDpmWritable        = "powerDpmWritable";
+static constexpr const char* kNodeStringDrivers                 = "drivers";
+static constexpr const char* kNodeStringDriverIndex              = "driverIndex";
+static constexpr const char* kNodeStringPcis                     = "pcis";
 static constexpr const char* kNodeStringDevDriver               = "devdriver";
 static constexpr const char* kNodeStringTag                     = "tag";
 static constexpr const char* kNodeStringLinux                   = "linux";

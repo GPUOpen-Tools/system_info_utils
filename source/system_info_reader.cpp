@@ -8,29 +8,62 @@
 #include "system_info_reader.h"
 
 #include <cstdint>
+#include <cstring>
 #include <sstream>
+#include <type_traits>
 
-#include "json.hpp"
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include "definitions.h"
 
 namespace
 {
-    /// @brief Gets the property from the JSON object with a default object if that key is not present.
+    /// @brief Gets the property from the JSON object with a default value if that key is not present.
     /// @tparam [in] T The type to convert the specified JSON property into.
     /// @param [in] parent The object to get the property from.
     /// @param [in] name The name of the property to get from the parent object.
     /// @param [in] fallback The default value to use if the value is not present.
     /// @return The value from the JSON object or the default value.
     template <typename T>
-    T Get(const nlohmann::json& parent, char const* name, const T& fallback)
+    T Get(const rapidjson::Value& parent, const char* name, const T& fallback)
     {
-        if (parent.contains(name))
+        if (!parent.IsObject() || !parent.HasMember(name))
         {
-            return parent[name];
+            return fallback;
         }
 
-        return fallback;
+        const auto& val = parent[name];
+
+        if constexpr (std::is_same_v<T, std::string>)
+        {
+            return val.IsString() ? std::string(val.GetString()) : fallback;
+        }
+        else if constexpr (std::is_same_v<T, bool>)
+        {
+            return val.IsBool() ? val.GetBool() : fallback;
+        }
+        else if constexpr (std::is_same_v<T, uint64_t>)
+        {
+            return val.IsUint64() ? val.GetUint64() : fallback;
+        }
+        else if constexpr (std::is_same_v<T, uint32_t>)
+        {
+            return val.IsUint() ? val.GetUint() : fallback;
+        }
+        else if constexpr (std::is_unsigned_v<T>)
+        {
+            if (val.IsUint64())
+                return static_cast<T>(val.GetUint64());
+            if (val.IsUint())
+                return static_cast<T>(val.GetUint());
+            return fallback;
+        }
+        else
+        {
+            return fallback;
+        }
     }
 
     /// @brief Check if a node with the given name exists as a child of the provided parent node.
@@ -38,17 +71,20 @@ namespace
     /// @param [in] parent The parent JSON node whose children will be searched.
     /// @param [in] name The name of the child node to search for.
     /// @return True when a child JSON node with the given name exists, and false if it doesn't.
-    bool DoesNodeExist(const nlohmann::json& parent, const std::string& name)
+    bool DoesNodeExist(const rapidjson::Value& parent, const char* name)
     {
-        bool result = false;
+        return parent.IsObject() && parent.HasMember(name);
+    }
 
-        auto node_iter = parent.find(name);
-        if (node_iter != parent.end())
-        {
-            result = true;
-        }
-
-        return result;
+    /// @brief Serialize a RapidJSON value to a JSON string.
+    /// @param [in] value The JSON value to serialize.
+    /// @return The JSON string representation.
+    std::string DumpJson(const rapidjson::Value& value)
+    {
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        value.Accept(writer);
+        return std::string(buffer.GetString(), buffer.GetSize());
     }
 
 }  // namespace
@@ -69,7 +105,7 @@ namespace system_info_utils
         ///
         /// @param [in] system_value_node The parent JSON node containing system info fields.
         /// @param [in, out] system_info The structure to be populated with the parsed system info members.
-        virtual void ProcessSystemValueNode(const nlohmann::json& system_value_node, SystemInfo& system_info)
+        virtual void ProcessSystemValueNode(const rapidjson::Value& system_value_node, SystemInfo& system_info)
         {
             if (DoesNodeExist(system_value_node, kNodeStringDevDriver))
             {
@@ -79,6 +115,11 @@ namespace system_info_utils
             if (DoesNodeExist(system_value_node, kNodeStringDriver))
             {
                 ProcessDriverNode(system_value_node[kNodeStringDriver], system_info.driver);
+            }
+
+            if (DoesNodeExist(system_value_node, kNodeStringDrivers))
+            {
+                ProcessDriversNode(system_value_node[kNodeStringDrivers], system_info.drivers);
             }
 
             if (DoesNodeExist(system_value_node, kNodeStringOs))
@@ -102,7 +143,7 @@ namespace system_info_utils
         ///
         /// @param [in] dev_driver_root The parent JSON node for the DevDriver section.
         /// @param [in, out] dev_driver_info The structure to be populated with the parsed DevDriver info.
-        virtual void ProcessDevDriverNode(const nlohmann::json& dev_driver_root, DevDriverInfo& dev_driver_info)
+        virtual void ProcessDevDriverNode(const rapidjson::Value& dev_driver_root, DevDriverInfo& dev_driver_info)
         {
             if (DoesNodeExist(dev_driver_root, kNodeStringVersion))
             {
@@ -117,7 +158,7 @@ namespace system_info_utils
         ///
         /// @param [in] memory_root The parent JSON node for the memory section.
         /// @param [in, out] memory_info The structure to be populated with the parsed system memory info.
-        virtual void ProcessOsMemoryNode(const nlohmann::json& memory_root, OsMemoryInfo& memory_info)
+        virtual void ProcessOsMemoryNode(const rapidjson::Value& memory_root, OsMemoryInfo& memory_info)
         {
             memory_info.physical = Get<uint64_t>(memory_root, kNodeStringMemoryPhysical, 0);
             memory_info.swap     = Get<uint64_t>(memory_root, kNodeStringMemorySwap, 0);
@@ -128,11 +169,11 @@ namespace system_info_utils
         ///
         /// @param [in] etw_root The parent JSON node for the ETW Info section.
         /// @param [in, out] etw_info The structure to be populated with the parsed ETW info.
-        virtual void ProcessEtwNode(const nlohmann::json& etw_root, EtwSupportInfo& etw_info)
+        virtual void ProcessEtwNode(const rapidjson::Value& etw_root, EtwSupportInfo& etw_info)
         {
             etw_info.is_supported                    = Get<bool>(etw_root, kNodeStringSupported, false);
             etw_info.has_permission                  = Get<bool>(etw_root, kNodeStringHasPermission, false);
-            etw_info.status_code                     = Get<unsigned long>(etw_root, kNodeStringStatusCode, 0);
+            etw_info.status_code                     = Get<uint32_t>(etw_root, kNodeStringStatusCode, 0);
             etw_info.needs_rgp_registry_or_usergroup = Get<bool>(etw_root, kNodeStringEtwRegistryOrUserGroup, false);
         }
 
@@ -140,7 +181,7 @@ namespace system_info_utils
         ///
         /// @param [in] os_root The parent JSON node for the operating system section.
         /// @param [in, out] os_info The structure to be populated with the parsed operating system info.
-        virtual void ProcessOsNode(const nlohmann::json& os_root, OsInfo& os_info)
+        virtual void ProcessOsNode(const rapidjson::Value& os_root, OsInfo& os_info)
         {
             os_info.name     = Get<std::string>(os_root, kNodeStringName, "");
             os_info.desc     = Get<std::string>(os_root, kNodeStringDescription, "");
@@ -184,14 +225,16 @@ namespace system_info_utils
         ///
         /// @param [in] cpu_root The parent JSON node for the CPU section.
         /// @param [in, out] cpu_info The structure to be populated with the parsed CPU info.
-        virtual void ProcessCpusNode(const nlohmann::json& cpus_root, std::vector<CpuInfo>& cpus)
+        virtual void ProcessCpusNode(const rapidjson::Value& cpus_root, std::vector<CpuInfo>& cpus)
         {
-            // Iterate over each node under the GPUs parent.
-            auto first = cpus_root.begin();
-            auto last  = cpus_root.end();
-            for (auto iter = first; iter != last; ++iter)
+            if (!cpus_root.IsArray())
             {
-                const nlohmann::json& cpu_node = *iter;
+                return;
+            }
+
+            for (rapidjson::SizeType i = 0; i < cpus_root.Size(); ++i)
+            {
+                const rapidjson::Value& cpu_node = cpus_root[i];
 
                 CpuInfo cpu = {};
 
@@ -210,9 +253,8 @@ namespace system_info_utils
 
                 if (DoesNodeExist(cpu_node, kNodeStringSpeed))
                 {
-                    // Speed object
-                    const nlohmann::json& cpu_speed_node = cpu_node[kNodeStringSpeed];
-                    cpu.max_clock_speed                  = Get<uint32_t>(cpu_speed_node, kNodeStringMax, 0);
+                    const auto& cpu_speed_node = cpu_node[kNodeStringSpeed];
+                    cpu.max_clock_speed        = Get<uint32_t>(cpu_speed_node, kNodeStringMax, 0);
                 }
 
                 cpu.timestamp_clock_frequency = Get<uint64_t>(cpu_node, kNodeStringCpuTimeClockFreq, 0);
@@ -225,7 +267,7 @@ namespace system_info_utils
         ///
         /// @param [in] pci_root The parent JSON node for the PCI info section.
         /// @param [in, out] pci_info The structure to be populated with the parsed PCI info.
-        virtual void ProcessGpuPciNode(const nlohmann::json& pci_root, PciInfo& pci_info)
+        virtual void ProcessGpuPciNode(const rapidjson::Value& pci_root, PciInfo& pci_info)
         {
             pci_info.id       = 0;
             pci_info.bus      = Get<uint32_t>(pci_root, kNodeStringPciBus, 0);
@@ -236,31 +278,35 @@ namespace system_info_utils
         /// @brief Processes the CU mask list.
         /// @param [in] cu_mask_root The json node that has the CU mask.
         /// @param [in, out] asicInfo The structure to be populated with the parsed CU mask.
-        virtual void ProcessCuMaskNode(const nlohmann::json& cu_mask_root, AsicInfo& asicInfo)
+        virtual void ProcessCuMaskNode(const rapidjson::Value& cu_mask_root, AsicInfo& asicInfo)
         {
-            if (!cu_mask_root.is_array())
+            if (!cu_mask_root.IsArray())
             {
                 return;
             }
 
-            for (const auto& shader_array_list : cu_mask_root)
+            for (rapidjson::SizeType i = 0; i < cu_mask_root.Size(); ++i)
             {
-                if (!shader_array_list.is_array())
+                const auto& shader_array_list = cu_mask_root[i];
+
+                if (!shader_array_list.IsArray())
                 {
                     asicInfo.cu_mask.clear();
                     return;
                 }
 
                 auto& shader_array_masks = asicInfo.cu_mask.emplace_back();
-                for (const auto& shader_array_mask_item : shader_array_list)
+                for (rapidjson::SizeType j = 0; j < shader_array_list.Size(); ++j)
                 {
-                    if (!shader_array_mask_item.is_number_unsigned())
+                    const auto& shader_array_mask_item = shader_array_list[j];
+
+                    if (!shader_array_mask_item.IsUint())
                     {
                         asicInfo.cu_mask.clear();
                         return;
                     }
 
-                    shader_array_masks.push_back(shader_array_mask_item.get<uint32_t>());
+                    shader_array_masks.push_back(shader_array_mask_item.GetUint());
                 }
             }
         }
@@ -269,7 +315,7 @@ namespace system_info_utils
         ///
         /// @param [in] clock_hz_root The parent JSON node containing the clock Hz info.
         /// @param [in, out] clock_info The structure to be populated with the parsed clock frequency info.
-        virtual void ProcessClockInfoNode(const nlohmann::json& clock_hz_root, ClockInfo& clock_info)
+        virtual void ProcessClockInfoNode(const rapidjson::Value& clock_hz_root, ClockInfo& clock_info)
         {
             clock_info.min = Get<uint64_t>(clock_hz_root, kNodeStringMin, 0);
             clock_info.max = Get<uint64_t>(clock_hz_root, kNodeStringMax, 0);
@@ -279,7 +325,7 @@ namespace system_info_utils
         ///
         /// @param [in] asic_id_info_root The parent JSON node containing the ASIC Id info.
         /// @param [in, out] asic_id_info The structure to be populated with the parsed ASIC Id info.
-        virtual void ProcessAsicIdInfoNode(const nlohmann::json& asic_id_info_root, IdInfo& asic_id_info)
+        virtual void ProcessAsicIdInfoNode(const rapidjson::Value& asic_id_info_root, IdInfo& asic_id_info)
         {
             asic_id_info.gfx_engine = Get<uint32_t>(asic_id_info_root, kNodeStringAsicGfxEngine, 0);
             asic_id_info.family     = Get<uint32_t>(asic_id_info_root, kNodeStringAsicFamily, 0);
@@ -303,7 +349,7 @@ namespace system_info_utils
         ///
         /// @param [in] asic_root The parent JSON node containing the GPU's ASIC info.
         /// @param [in, out] asic_info The structure to be populated with the parsed ASIC info.
-        virtual void ProcessGpuAsicNode(const nlohmann::json& asic_root, AsicInfo& asic_info)
+        virtual void ProcessGpuAsicNode(const rapidjson::Value& asic_root, AsicInfo& asic_info)
         {
             asic_info.gpu_index        = Get<uint32_t>(asic_root, kNodeStringAsicGpuIndex, static_cast<uint32_t>(-1));
             asic_info.gpu_counter_freq = Get<uint32_t>(asic_root, kNodeStringAsicGpuCounterFrequency, 0);
@@ -332,16 +378,19 @@ namespace system_info_utils
         ///
         /// @param [in] heaps_root The parent JSON node containing the device's memory heaps info.
         /// @param [in, out] heaps The vector of structures to be populated with the parsed memory heap info.
-        virtual void ProcessGpuMemoryHeapsNode(const nlohmann::json& heaps_root, std::vector<HeapInfo>& heaps)
+        virtual void ProcessGpuMemoryHeapsNode(const rapidjson::Value& heaps_root, std::vector<HeapInfo>& heaps)
         {
-            auto first_heap_iter = heaps_root.begin();
-            auto last_heap_iter  = heaps_root.end();
-            for (auto heap_iter = first_heap_iter; heap_iter != last_heap_iter; ++heap_iter)
+            if (!heaps_root.IsObject())
             {
-                const nlohmann::json& current_heap_node = *heap_iter;
+                return;
+            }
+
+            for (auto heap_iter = heaps_root.MemberBegin(); heap_iter != heaps_root.MemberEnd(); ++heap_iter)
+            {
+                const rapidjson::Value& current_heap_node = heap_iter->value;
 
                 HeapInfo current_heap  = {};
-                current_heap.heap_type = heap_iter.key();
+                current_heap.heap_type = std::string(heap_iter->name.GetString());
                 current_heap.phys_addr = Get<uint64_t>(current_heap_node, kNodeStringPhysicalAddress, 0);
                 current_heap.size      = Get<uint64_t>(current_heap_node, kNodeStringSize, 0);
 
@@ -353,14 +402,16 @@ namespace system_info_utils
         ///
         /// @param [in] excluded_ranges_root The parent JSON node containing the device's excluded memory range info.
         /// @param [in, out] excluded_ranges The vector of structures to be populated with the parsed excluded memory range info.
-        virtual void ProcessExcludedVaRanges(const nlohmann::json& excluded_ranges_root, std::vector<ExcludedRangeInfo>& excluded_ranges)
+        virtual void ProcessExcludedVaRanges(const rapidjson::Value& excluded_ranges_root, std::vector<ExcludedRangeInfo>& excluded_ranges)
         {
-            // Iterate over each node under the GPUs parent.
-            auto first_excluded_range_iter = excluded_ranges_root.begin();
-            auto last_excluded_range_iter  = excluded_ranges_root.end();
-            for (auto range_iter = first_excluded_range_iter; range_iter != last_excluded_range_iter; ++range_iter)
+            if (!excluded_ranges_root.IsArray())
             {
-                const nlohmann::json& excluded_range_root = *range_iter;
+                return;
+            }
+
+            for (rapidjson::SizeType i = 0; i < excluded_ranges_root.Size(); ++i)
+            {
+                const rapidjson::Value& excluded_range_root = excluded_ranges_root[i];
 
                 ExcludedRangeInfo current_range = {};
                 current_range.base              = Get<uint64_t>(excluded_range_root, kNodeStringBase, 0);
@@ -374,7 +425,7 @@ namespace system_info_utils
         ///
         /// @param [in] memory_root The parent JSON node containing the device's memory info.
         /// @param [in, out] memory_info The structure to be populated with the parsed memory info.
-        virtual void ProcessGpuMemoryNode(const nlohmann::json& memory_root, MemoryInfo& memory_info)
+        virtual void ProcessGpuMemoryNode(const rapidjson::Value& memory_root, MemoryInfo& memory_info)
         {
             memory_info.type              = Get<std::string>(memory_root, kNodeStringType, "");
             memory_info.mem_ops_per_clock = Get<uint32_t>(memory_root, kNodeStringMemoryOpsPerClock, 0);
@@ -401,7 +452,7 @@ namespace system_info_utils
         ///
         /// @param [in] sw_version_root The parent JSON node containing the software version info.
         /// @param [in, out] version The structure to be populated with the parsed version info.
-        virtual void ProcessSoftwareVersionNode(const nlohmann::json& sw_version_root, SoftwareVersion& version)
+        virtual void ProcessSoftwareVersionNode(const rapidjson::Value& sw_version_root, SoftwareVersion& version)
         {
             version.major = Get<uint32_t>(sw_version_root, kNodeStringMajor, 0);
             version.minor = Get<uint32_t>(sw_version_root, kNodeStringMinor, 0);
@@ -412,16 +463,17 @@ namespace system_info_utils
         ///
         /// @param [in] gpus_root The parent JSON node with info for all connected GPUs.
         /// @param [in, out] gpus The vector of structures to be populated with the parsed GpuInfo fields.
-        virtual void ProcessGpusNodes(const nlohmann::json& gpus_root, std::vector<GpuInfo>& gpus)
+        virtual void ProcessGpusNodes(const rapidjson::Value& gpus_root, std::vector<GpuInfo>& gpus)
         {
-            // Iterate over each node under the GPUs parent.
-            auto first = gpus_root.begin();
-            auto last  = gpus_root.end();
-            for (auto iter = first; iter != last; ++iter)
+            if (!gpus_root.IsArray())
             {
-                const nlohmann::json& gpu_node = *iter;
+                return;
+            }
 
-                // Populate this GPU structure with info from the current GPU node.
+            for (rapidjson::SizeType i = 0; i < gpus_root.Size(); ++i)
+            {
+                const rapidjson::Value& gpu_node = gpus_root[i];
+
                 GpuInfo gpu = {};
 
                 gpu.name = Get<std::string>(gpu_node, kNodeStringName, "");
@@ -446,11 +498,16 @@ namespace system_info_utils
                     ProcessSoftwareVersionNode(gpu_node[kNodeStringBigSw], gpu.big_sw);
                 }
 
+                if (DoesNodeExist(gpu_node, kNodeStringDriverIndex))
+                {
+                    gpu.driver_index = Get<uint32_t>(gpu_node, kNodeStringDriverIndex, 0);
+                }
+
                 gpus.push_back(gpu);
             }
         }
 
-        virtual void ProcessDriverNode(const nlohmann::json& driver_node, DriverInfo& driver)
+        virtual void ProcessDriverNode(const rapidjson::Value& driver_node, DriverInfo& driver)
         {
             driver.name              = Get<std::string>(driver_node, kNodeStringName, "");
             driver.description       = Get<std::string>(driver_node, kNodeStringDescription, "");
@@ -466,7 +523,33 @@ namespace system_info_utils
                 driver.packaging_date = std::nullopt;
             }
 
-            driver.is_closed_source = Get<bool>(driver_node, kNodeStringIsClosedSource, false);
+            if (DoesNodeExist(driver_node, kNodeStringPci))
+            {
+                PciInfo pci_info = {};
+                ProcessGpuPciNode(driver_node[kNodeStringPci], pci_info);
+                driver.pci = pci_info;
+            }
+
+            if (DoesNodeExist(driver_node, kNodeStringPcis))
+            {
+                const auto& pcis_node = driver_node[kNodeStringPcis];
+                if (pcis_node.IsArray())
+                {
+                    for (rapidjson::SizeType i = 0; i < pcis_node.Size(); ++i)
+                    {
+                        PciInfo pci_info = {};
+                        ProcessGpuPciNode(pcis_node[i], pci_info);
+                        driver.pcis.push_back(pci_info);
+                    }
+                }
+            }
+
+            // Strip the Debian epoch prefix (e.g. "1:") if present.
+            size_t epoch_pos = driver.packaging_version.find(':');
+            if (epoch_pos != std::string::npos)
+            {
+                driver.packaging_version = driver.packaging_version.substr(epoch_pos + 1);
+            }
 
             // Parse major and minor
             if (!driver.packaging_version.empty())
@@ -489,12 +572,31 @@ namespace system_info_utils
                 driver.packaging_version_minor = std::atoi(driver.packaging_version.substr(rest, next - rest).c_str());
             }
         }
+
+        /// @brief Process the drivers array JSON node.
+        ///
+        /// @param [in] drivers_node The JSON array node containing driver entries.
+        /// @param [in, out] drivers The vector to be populated with parsed driver info entries.
+        virtual void ProcessDriversNode(const rapidjson::Value& drivers_node, std::vector<DriverInfo>& drivers)
+        {
+            if (!drivers_node.IsArray())
+            {
+                return;
+            }
+
+            for (rapidjson::SizeType i = 0; i < drivers_node.Size(); ++i)
+            {
+                DriverInfo driver{};
+                ProcessDriverNode(drivers_node[i], driver);
+                drivers.push_back(driver);
+            }
+        }
     };
 
     class SystemInfoParserV2 : public SystemInfoParserV1
     {
     public:
-        virtual void ProcessSystemValueNode(const nlohmann::json& system_value_node, SystemInfo& system_info)
+        virtual void ProcessSystemValueNode(const rapidjson::Value& system_value_node, SystemInfo& system_info)
         {
             SystemInfoParserV1::ProcessSystemValueNode(system_value_node, system_info);
 
@@ -504,14 +606,16 @@ namespace system_info_utils
             }
         }
 
-        virtual void ProcessProcessListNode(const nlohmann::json& process_list_node, std::vector<Process>& processes)
+        virtual void ProcessProcessListNode(const rapidjson::Value& process_list_node, std::vector<Process>& processes)
         {
-            // Iterate over each node under the GPUs parent.
-            auto first = process_list_node.begin();
-            auto last  = process_list_node.end();
-            for (auto iter = first; iter != last; ++iter)
+            if (!process_list_node.IsArray())
             {
-                const nlohmann::json& process_node = *iter;
+                return;
+            }
+
+            for (rapidjson::SizeType i = 0; i < process_list_node.Size(); ++i)
+            {
+                const rapidjson::Value& process_node = process_list_node[i];
 
                 Process p;
                 p.name = Get<std::string>(process_node, kNodeStringName, "");
@@ -551,12 +655,12 @@ namespace system_info_utils
     /// @param [in] system_node The parent JSON node containing system info value fields.
     /// @param [in, out] system_info The structure to be populated with the parsed system info members.
     /// @return True if parsing was successful, and false if it failed.
-    static bool ProcessSystemNode(const nlohmann::json& system_node, SystemInfo& system_info)
+    static bool ProcessSystemNode(const rapidjson::Value& system_node, SystemInfo& system_info)
     {
         // Handle version 2+ versioning object
-        if (DoesNodeExist(system_node, kNodeStringVersion) && system_node[kNodeStringVersion].is_object())
+        if (DoesNodeExist(system_node, kNodeStringVersion) && system_node[kNodeStringVersion].IsObject())
         {
-            auto& version_node        = system_node[kNodeStringVersion];
+            const auto& version_node  = system_node[kNodeStringVersion];
             system_info.version.major = Get<uint32_t>(version_node, kNodeStringMajor, 2);
             system_info.version.minor = Get<uint32_t>(version_node, kNodeStringMinor, 0);
             system_info.version.patch = Get<uint32_t>(version_node, kNodeStringPatch, 0);
@@ -580,87 +684,49 @@ namespace system_info_utils
 
     bool SystemInfoReader::Parse(const std::string& json, system_info_utils::SystemInfo& system_info)
     {
-        bool result = true;
+        rapidjson::Document structure;
+        structure.Parse(json.c_str());
 
-        SYSTEM_INFO_TRY
+        if (structure.HasParseError() || !structure.IsObject())
         {
-            nlohmann::json structure = nlohmann::json::parse(json);
-
-            // Process the 'system' node
-            if (DoesNodeExist(structure, kNodeStringSystem))
-            {
-                result = ProcessSystemNode(structure[kNodeStringSystem], system_info);
-            }
-            else
-            {
-                // Process a system info only chunk of JSON. Presumably from an RDF file.
-                result = ProcessSystemNode(structure, system_info);
-            }
-        }
-        SYSTEM_INFO_CATCH(...)
-        {
-            // There was a failure in parsing the system info.
-            result = false;
+            return false;
         }
 
-        return result;
+        // Process the 'system' node
+        if (DoesNodeExist(structure, kNodeStringSystem))
+        {
+            return ProcessSystemNode(structure[kNodeStringSystem], system_info);
+        }
+        else
+        {
+            // Process a system info only chunk of JSON. Presumably from an RDF file.
+            return ProcessSystemNode(structure, system_info);
+        }
     }
 
     std::string SystemInfoReader::Parse(const std::string& json)
     {
-        SYSTEM_INFO_TRY
-        {
-            nlohmann::json structure = nlohmann::json::parse(json);
+        rapidjson::Document structure;
+        structure.Parse(json.c_str());
 
-            // Process the 'system' node
-            if (DoesNodeExist(structure, kNodeStringSystem))
-            {
-                return structure[kNodeStringSystem].dump();
-            }
-            else
-            {
-                // Process a system info only chunk of JSON. Presumably from an RDF file.
-                return json;
-            }
-        }
-        SYSTEM_INFO_CATCH(...)
+        if (structure.HasParseError() || !structure.IsObject())
         {
+            return "";
         }
 
-        return "";
+        // Process the 'system' node
+        if (DoesNodeExist(structure, kNodeStringSystem))
+        {
+            return DumpJson(structure[kNodeStringSystem]);
+        }
+        else
+        {
+            // Process a system info only chunk of JSON. Presumably from an RDF file.
+            return json;
+        }
     }
 
 #ifdef SYSTEM_INFO_ENABLE_RDF
-#ifdef RDF_CXX_BINDINGS
-    bool SystemInfoReader::Parse(rdf::ChunkFile& file, SystemInfo& system_info)
-    {
-        bool result = false;
-
-        if (!file.ContainsChunk(kSystemInfoChunkIdentifier))
-        {
-            return result;
-        }
-
-        // Access system info chunk data
-        auto version = file.GetChunkVersion(kSystemInfoChunkIdentifier);
-        if (version > kSystemInfoChunkVersionMax)
-        {
-            return result;
-        }
-
-        // Access chunk data
-        auto chunk_size = file.GetChunkDataSize(kSystemInfoChunkIdentifier);
-
-        char* buffer = new char[chunk_size + 1];
-        file.ReadChunkDataToBuffer(kSystemInfoChunkIdentifier, buffer);
-        buffer[chunk_size] = 0;
-
-        result = Parse(buffer, system_info);
-        delete[] buffer;
-
-        return result;
-    }
-#endif
     bool SystemInfoReader::Parse(rdfChunkFile* file, SystemInfo& system_info)
     {
         assert(file != nullptr);

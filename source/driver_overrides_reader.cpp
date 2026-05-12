@@ -7,7 +7,11 @@
 
 #include "driver_overrides_reader.h"
 
-#include "json.hpp"
+#include <memory>
+
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include "definitions.h"
 #include "driver_overrides_definitions.h"
@@ -18,20 +22,44 @@ namespace driver_overrides_utils
     /// @param [in] parent The parent JSON node whose children will be searched.
     /// @param [in] name The name of the child node to search for.
     /// @return True when a child JSON node with the given name exists, and false if it doesn't.
-    static bool DoesNodeExist(const nlohmann::json& parent, const std::string& name)
+    static bool DoesNodeExist(const rapidjson::Value& parent, const char* name)
     {
-        bool result = false;
-
-        auto node_iter = parent.find(name);
-        if (node_iter != parent.end())
-        {
-            result = true;
-        }
-
-        return result;
+        return parent.IsObject() && parent.HasMember(name);
     }
 
-    /// @brief The interface for parses that process the Driver Override JSON chunk.
+    /// @brief Gets or creates a member object in a JSON value.
+    /// @param [in, out] parent The parent JSON object.
+    /// @param [in] name The member name.
+    /// @param [in, out] alloc The allocator.
+    /// @return Reference to the member value.
+    static rapidjson::Value& GetOrCreateMember(rapidjson::Value& parent, const char* name, rapidjson::Document::AllocatorType& alloc)
+    {
+        if (!parent.HasMember(name))
+        {
+            rapidjson::Value memberName(name, alloc);
+            rapidjson::Value memberValue(rapidjson::kObjectType);
+            parent.AddMember(memberName, memberValue, alloc);
+        }
+        return parent[name];
+    }
+
+    /// @brief Gets or creates a member array in a JSON value.
+    /// @param [in, out] parent The parent JSON object.
+    /// @param [in] name The member name.
+    /// @param [in, out] alloc The allocator.
+    /// @return Reference to the member array value.
+    static rapidjson::Value& GetOrCreateArray(rapidjson::Value& parent, const char* name, rapidjson::Document::AllocatorType& alloc)
+    {
+        if (!parent.HasMember(name))
+        {
+            rapidjson::Value memberName(name, alloc);
+            rapidjson::Value memberValue(rapidjson::kArrayType);
+            parent.AddMember(memberName, memberValue, alloc);
+        }
+        return parent[name];
+    }
+
+    /// @brief The interface for parsers that process the Driver Override JSON chunk.
     class IDriverOverridesParser
     {
     public:
@@ -47,7 +75,7 @@ namespace driver_overrides_utils
         /// @param [in] driver_overrides_json The parent JSON node containing Driver Override fields.
         /// @param [in, out] out_processed_json_text The processed JSON text.
         /// @return True if parsing was successful, false if it failed.
-        virtual bool Process(const nlohmann::json& driver_overrides_json, std::string& out_processed_json_text)
+        virtual bool Process(const rapidjson::Value& driver_overrides_json, std::string& out_processed_json_text)
         {
             SYSTEM_INFO_UNUSED(driver_overrides_json);
             SYSTEM_INFO_UNUSED(out_processed_json_text);
@@ -71,14 +99,15 @@ namespace driver_overrides_utils
         /// @param [in] driver_overrides_json The parent JSON node containing Driver Override fields.
         /// @param [in, out] out_processed_json_text The JSON text for the filtered Driver Overrides.
         /// @return True if parsing was successful, false if it failed.
-        virtual bool Process(const nlohmann::json& driver_overrides_json, std::string& out_processed_json_text)
+        virtual bool Process(const rapidjson::Value& driver_overrides_json, std::string& out_processed_json_text)
         {
-            bool           result = false;
-            nlohmann::json processed_json;
+            bool result = false;
+
+            processed_doc_.SetObject();
 
             if (DoesNodeExist(driver_overrides_json, kNodeStringIsDriverExperiments))
             {
-                ParseIsDriverExperiments(driver_overrides_json[kNodeStringIsDriverExperiments], processed_json);
+                ParseIsDriverExperiments(driver_overrides_json[kNodeStringIsDriverExperiments]);
             }
             else
             {
@@ -87,12 +116,15 @@ namespace driver_overrides_utils
 
             if (DoesNodeExist(driver_overrides_json, kNodeStringComponents))
             {
-                result = ParseComponents(driver_overrides_json[kNodeStringComponents], processed_json);
+                result = ParseComponents(driver_overrides_json[kNodeStringComponents]);
             }
 
-            if (!processed_json.is_null())
+            if (processed_doc_.MemberCount() > 0)
             {
-                out_processed_json_text = processed_json.dump();
+                rapidjson::StringBuffer buffer;
+                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                processed_doc_.Accept(writer);
+                out_processed_json_text = std::string(buffer.GetString(), buffer.GetSize());
             }
             else
             {
@@ -105,46 +137,62 @@ namespace driver_overrides_utils
     protected:
         /// @brief Parse the "IsDriverExperiments" node.
         /// @param [in] driver_overrides_json The JSON node containing the "IsDriverExperiments" field.
-        /// @param [in, out] out_processed_json The processed Driver Overrides JSON data to include the "IsDriverExperiments" field.
         /// @return True if parsing was successful, false if it failed.
-        bool ParseIsDriverExperiments(const nlohmann::json& driver_overrides_json, nlohmann::json& out_processed_json)
+        bool ParseIsDriverExperiments(const rapidjson::Value& driver_overrides_json)
         {
             bool result = false;
 
-            is_driver_experiments_                             = driver_overrides_json;
-            out_processed_json[kNodeStringIsDriverExperiments] = is_driver_experiments_;
+            is_driver_experiments_ = driver_overrides_json.IsBool() ? driver_overrides_json.GetBool() : false;
 
+            auto& alloc = processed_doc_.GetAllocator();
+            if (processed_doc_.HasMember(kNodeStringIsDriverExperiments))
+            {
+                processed_doc_[kNodeStringIsDriverExperiments].SetBool(is_driver_experiments_);
+            }
+            else
+            {
+                rapidjson::Value expKey(kNodeStringIsDriverExperiments, alloc);
+                rapidjson::Value expVal(is_driver_experiments_);
+                processed_doc_.AddMember(expKey, expVal, alloc);
+            }
+
+            result = true;
             return result;
         }
 
         /// @brief Parse the "Components" node.
         /// @param [in] driver_overrides_json The JSON node containing the "Components" array.
-        /// @param [in, out] out_processed_json The processed Driver Overrides JSON data that includes filtered components.
         /// @return True if parsing was successful, false if it failed.
-        bool ParseComponents(const nlohmann::json& driver_overrides_json, nlohmann::json& out_processed_json)
+        bool ParseComponents(const rapidjson::Value& driver_overrides_json)
         {
             bool result = false;
 
-            if (driver_overrides_json.empty())
+            if (!driver_overrides_json.IsArray())
+            {
+                return false;
+            }
+
+            if (driver_overrides_json.Empty())
             {
                 result = true;
             }
             else
             {
-                for (nlohmann::json::const_iterator components_iterator = driver_overrides_json.begin(); components_iterator != driver_overrides_json.end();
-                     ++components_iterator)
+                for (rapidjson::SizeType i = 0; i < driver_overrides_json.Size(); ++i)
                 {
-                    if (DoesNodeExist(components_iterator.value(), kNodeStringComponent))
+                    const auto& component_entry = driver_overrides_json[i];
+
+                    if (DoesNodeExist(component_entry, kNodeStringComponent))
                     {
-                        result = ParseComponent(components_iterator.value()[kNodeStringComponent]);
+                        result = ParseComponent(component_entry[kNodeStringComponent]);
                         if (!result)
                         {
                             break;
                         }
 
-                        if (DoesNodeExist(components_iterator.value(), kNodeStringStructures))
+                        if (DoesNodeExist(component_entry, kNodeStringStructures))
                         {
-                            result = ParseStructures(components_iterator.value()[kNodeStringStructures], out_processed_json);
+                            result = ParseStructures(component_entry[kNodeStringStructures]);
                             if (!result)
                             {
                                 break;
@@ -160,10 +208,16 @@ namespace driver_overrides_utils
         /// @brief Parse the "Component" node.  The Component name will be cached for use later.
         /// @param [in] driver_overrides_json The JSON node containing the "Component" field.
         /// @return True if parsing was successful, false if it failed.
-        bool ParseComponent(const nlohmann::json& driver_overrides_json)
+        bool ParseComponent(const rapidjson::Value& driver_overrides_json)
         {
-            // Store the component name.
-            current_component_name_ = driver_overrides_json;
+            if (driver_overrides_json.IsString())
+            {
+                current_component_name_ = driver_overrides_json.GetString();
+            }
+            else
+            {
+                current_component_name_.clear();
+            }
 
             bool result = !current_component_name_.empty();
 
@@ -171,23 +225,26 @@ namespace driver_overrides_utils
         }
 
         /// @brief Parse the "Structures" node.
-        /// @param [in] driver_overrides_json The JSON node containing the "Structures" array.
-        /// @param [in, out] out_processed_json The processed Driver Overrides JSON data to include filtered structures.
+        /// @param [in] driver_overrides_json The JSON node containing the "Structures" object.
         /// @return True if parsing was successful, false if it failed.
-        bool ParseStructures(const nlohmann::json& driver_overrides_json, nlohmann::json& out_processed_json)
+        bool ParseStructures(const rapidjson::Value& driver_overrides_json)
         {
             bool result = false;
 
-            for (nlohmann::json::const_iterator structures_iterator = driver_overrides_json.begin(); structures_iterator != driver_overrides_json.end();
-                 ++structures_iterator)
+            if (!driver_overrides_json.IsObject())
             {
-                current_structure_name_ = structures_iterator.key();
+                return false;
+            }
+
+            for (auto it = driver_overrides_json.MemberBegin(); it != driver_overrides_json.MemberEnd(); ++it)
+            {
+                current_structure_name_ = it->name.GetString();
                 if (current_structure_name_.empty())
                 {
                     current_structure_name_ = kDriverOverridesmiscellaneousStructure;
                 }
 
-                result = ParseStructure(structures_iterator.value(), out_processed_json);
+                result = ParseStructure(it->value);
                 if (!result)
                 {
                     break;
@@ -198,16 +255,20 @@ namespace driver_overrides_utils
         }
 
         /// @brief Parse the "Structure" node.
-        /// @param [in] driver_overrides_json The JSON node containing the "Structure" array.  The name is cached for use later.
-        /// @param [in, out] out_processed_json The processed Driver Overrides JSON data to include filtered structures.
+        /// @param [in] driver_overrides_json The JSON node containing the "Structure" array.
         /// @return True if parsing was successful, false if it failed.
-        bool ParseStructure(const nlohmann::json& driver_overrides_json, nlohmann::json& out_processed_json)
+        bool ParseStructure(const rapidjson::Value& driver_overrides_json)
         {
             bool result = true;
-            for (nlohmann::json::const_iterator structures_iterator = driver_overrides_json.begin(); structures_iterator != driver_overrides_json.end();
-                 ++structures_iterator)
+
+            if (!driver_overrides_json.IsArray())
             {
-                result = ParseSetting(structures_iterator.value(), out_processed_json);
+                return false;
+            }
+
+            for (rapidjson::SizeType i = 0; i < driver_overrides_json.Size(); ++i)
+            {
+                result = ParseSetting(driver_overrides_json[i]);
                 if (!result)
                 {
                     break;
@@ -219,13 +280,13 @@ namespace driver_overrides_utils
 
         /// @brief Parse the "Setting" node.
         /// @param [in] driver_overrides_json The JSON node containing the "Setting" array.
-        /// @param [in, out] out_processed_json The processed Driver Overrides JSON data to include filtered settings.
         /// @return True if parsing was successful, false if it failed.
-        virtual bool ParseSetting(const nlohmann::json& driver_overrides_json, nlohmann::json& out_processed_json)
+        virtual bool ParseSetting(const rapidjson::Value& driver_overrides_json)
         {
             bool result = true;
+            auto& alloc = processed_doc_.GetAllocator();
 
-            if ((DoesNodeExist(driver_overrides_json, kNodeStringSupported)) && (!driver_overrides_json[kNodeStringSupported]))
+            if ((DoesNodeExist(driver_overrides_json, kNodeStringSupported)) && (!driver_overrides_json[kNodeStringSupported].GetBool()))
             {
                 // Skip this setting if it's not supported.
                 return true;
@@ -235,20 +296,30 @@ namespace driver_overrides_utils
             {
                 if (driver_overrides_json[kNodeStringUserOverride] == driver_overrides_json[kNodeStringCurrent])
                 {
-                    nlohmann::json json_settings_node;
-                    json_settings_node[kNodeStringValue]       = driver_overrides_json[kNodeStringUserOverride];
-                    json_settings_node[kNodeStringSettingName] = driver_overrides_json[kNodeStringSettingName];
-                    json_settings_node[kNodeStringDescription] = driver_overrides_json[kNodeStringDescription];
+                    rapidjson::Value json_settings_node(rapidjson::kObjectType);
+                    rapidjson::Value valKey(kNodeStringValue, alloc);
+                    rapidjson::Value valVal(driver_overrides_json[kNodeStringUserOverride], alloc);
+                    json_settings_node.AddMember(valKey, valVal, alloc);
+                    rapidjson::Value nameKey(kNodeStringSettingName, alloc);
+                    rapidjson::Value nameVal(driver_overrides_json[kNodeStringSettingName], alloc);
+                    json_settings_node.AddMember(nameKey, nameVal, alloc);
+                    rapidjson::Value descKey(kNodeStringDescription, alloc);
+                    rapidjson::Value descVal(driver_overrides_json[kNodeStringDescription], alloc);
+                    json_settings_node.AddMember(descKey, descVal, alloc);
 
                     if (is_driver_experiments_)
                     {
-                        out_processed_json[kNodeStringStructures][current_structure_name_].push_back(json_settings_node);
+                        auto& structures = GetOrCreateMember(processed_doc_, kNodeStringStructures, alloc);
+                        auto& arr        = GetOrCreateArray(structures, current_structure_name_.c_str(), alloc);
+                        arr.PushBack(json_settings_node, alloc);
                     }
                     else
                     {
-                        nlohmann::json json_component_node;
-                        out_processed_json[kNodeStringComponents][current_component_name_][kNodeStringStructures][current_structure_name_].push_back(
-                            json_settings_node);
+                        auto& components     = GetOrCreateMember(processed_doc_, kNodeStringComponents, alloc);
+                        auto& component      = GetOrCreateMember(components, current_component_name_.c_str(), alloc);
+                        auto& structures     = GetOrCreateMember(component, kNodeStringStructures, alloc);
+                        auto& arr            = GetOrCreateArray(structures, current_structure_name_.c_str(), alloc);
+                        arr.PushBack(json_settings_node, alloc);
                     }
                 }
             }
@@ -261,9 +332,10 @@ namespace driver_overrides_utils
         }
 
     protected:
-        bool        is_driver_experiments_ = false;
-        std::string current_component_name_;
-        std::string current_structure_name_;
+        bool               is_driver_experiments_ = false;
+        std::string        current_component_name_;
+        std::string        current_structure_name_;
+        rapidjson::Document processed_doc_;
     };
 
     /// @brief Create a parser to parse a versioned chunk of Driver Overrides JSON data.
@@ -297,7 +369,7 @@ namespace driver_overrides_utils
     /// @param [in] version The version of the Driver Overrides JSON data.
     /// @param [in, out] out_processed_json_text The json string after processing the Driver Overrides data.
     /// @return True if parsing was successful, and false if it failed.
-    static bool ProcessDriverOverridesNode(const nlohmann::json& driver_overrides_node, std::uint32_t version, std::string& out_processed_json_text)
+    static bool ProcessDriverOverridesNode(const rapidjson::Value& driver_overrides_node, std::uint32_t version, std::string& out_processed_json_text)
     {
         bool                                    result = false;
         std::shared_ptr<IDriverOverridesParser> parser = CreateDriverOverridesParser(version);
@@ -313,21 +385,16 @@ namespace driver_overrides_utils
     /// @brief Implementation of the Driver Overrides Reader class.
     bool DriverOverridesReader::Parse(const std::string& driver_overrides_json_text, std::uint32_t version, std::string& out_processed_json_text)
     {
-        bool result = true;
-        SYSTEM_INFO_TRY
-        {
-            nlohmann::json driver_overrides_json = nlohmann::json::parse(driver_overrides_json_text);
+        rapidjson::Document driver_overrides_json;
+        driver_overrides_json.Parse(driver_overrides_json_text.c_str());
 
-            // Process a Driver Overrides chunk of JSON. Presumably from an RDF file.
-            result = ProcessDriverOverridesNode(driver_overrides_json, version, out_processed_json_text);
-        }
-        SYSTEM_INFO_CATCH(...)
+        if (driver_overrides_json.HasParseError() || !driver_overrides_json.IsObject())
         {
-            // There was a failure in parsing the Driver Overrides.
-            result = false;
+            return false;
         }
 
-        return result;
+        // Process a Driver Overrides chunk of JSON. Presumably from an RDF file.
+        return ProcessDriverOverridesNode(driver_overrides_json, version, out_processed_json_text);
     }
 
 #ifdef DRIVER_OVERRIDES_ENABLE_RDF

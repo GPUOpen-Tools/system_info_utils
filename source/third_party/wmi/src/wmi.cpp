@@ -11,6 +11,9 @@
 #include <wbemcli.h>
 #include <windows.h>
 
+#include <tl/expected.hpp>
+#include <wil/com.h>
+#include <wil/resource.h>
 #include <wmi.hpp>
 
 using std::function;
@@ -35,46 +38,46 @@ wstring escape(wstring str)
     return str;
 }
 
-IWbemLocator* createWbemLocator()
+tl::expected<wil::com_ptr_nothrow<IWbemLocator>, WmiException> createWbemLocator()
 {
-	IWbemLocator *pLocator = nullptr;
-	HRESULT hr = CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (void**)&pLocator);
+	wil::com_ptr_nothrow<IWbemLocator> pLocator;
+	HRESULT hr = CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pLocator));
 	if(FAILED(hr))
 	{
 		switch(hr)
 		{
-			case REGDB_E_CLASSNOTREG:	throw WmiException("Error initializing IWbemLocator: REGDB_E_CLASSNOTREG", hr);
-			case CLASS_E_NOAGGREGATION:	throw WmiException("Error initializing IWbemLocator: CLASS_E_NOAGGREGATION", hr);
-			case E_NOINTERFACE:			throw WmiException("Error initializing IWbemLocator: E_NOINTERFACE", hr);
-			case E_POINTER:				throw WmiException("Error initializing IWbemLocator: E_POINTER", hr);
-			default:					throw WmiException("Error initializing IWbemLocator: Unknown Error", hr);
+			case REGDB_E_CLASSNOTREG:	return tl::unexpected(WmiException("Error initializing IWbemLocator: REGDB_E_CLASSNOTREG", hr));
+			case CLASS_E_NOAGGREGATION:	return tl::unexpected(WmiException("Error initializing IWbemLocator: CLASS_E_NOAGGREGATION", hr));
+			case E_NOINTERFACE:			return tl::unexpected(WmiException("Error initializing IWbemLocator: E_NOINTERFACE", hr));
+			case E_POINTER:				return tl::unexpected(WmiException("Error initializing IWbemLocator: E_POINTER", hr));
+			default:					return tl::unexpected(WmiException("Error initializing IWbemLocator: Unknown Error", hr));
 		}
 	}
 
 	return pLocator;
 }
 
-IWbemServices* connect(IWbemLocator *pLocator, const std::string& path)
+tl::expected<wil::com_ptr_nothrow<IWbemServices>, WmiException> connect(IWbemLocator *pLocator, const std::string& path)
 {
-	IWbemServices *pServices;
+	wil::com_ptr_nothrow<IWbemServices> pServices;
 	HRESULT hr = pLocator->ConnectServer(_bstr_t("\\\\.\\root\\") + _bstr_t(path.c_str()), nullptr, nullptr, nullptr, 0, nullptr, nullptr, &pServices);
 	if(FAILED(hr))
 	{
 		switch(hr)
 		{
-			case (HRESULT)WBEM_E_ACCESS_DENIED:		throw WmiException("Error initializing IWbemServices: WBEM_E_ACCESS_DENIED", hr);
-			case (HRESULT)WBEM_E_FAILED:			throw WmiException("Error initializing IWbemServices: WBEM_E_FAILED", hr);
-			case (HRESULT)WBEM_E_INVALID_NAMESPACE:	throw WmiException("Error initializing IWbemServices: WBEM_E_INVALID_NAMESPACE", hr);
-			case (HRESULT)WBEM_E_INVALID_PARAMETER:	throw WmiException("Error initializing IWbemServices: WBEM_E_INVALID_PARAMETER", hr);
-			case (HRESULT)WBEM_E_OUT_OF_MEMORY:		throw WmiException("Error initializing IWbemServices: WBEM_E_OUT_OF_MEMORY", hr);
-			case (HRESULT)WBEM_E_TRANSPORT_FAILURE:	throw WmiException("Error initializing IWbemServices: WBEM_E_TRANSPORT_FAILURE", hr);
-			case (HRESULT)WBEM_E_LOCAL_CREDENTIALS:	throw WmiException("Error initializing IWbemServices: WBEM_E_LOCAL_CREDENTIALS", hr);
-			default:								throw WmiException("Error initializing IWbemServices: Unknown Error", hr);
+			case (HRESULT)WBEM_E_ACCESS_DENIED:		return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_ACCESS_DENIED", hr));
+			case (HRESULT)WBEM_E_FAILED:			return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_FAILED", hr));
+			case (HRESULT)WBEM_E_INVALID_NAMESPACE:	return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_INVALID_NAMESPACE", hr));
+			case (HRESULT)WBEM_E_INVALID_PARAMETER:	return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_INVALID_PARAMETER", hr));
+			case (HRESULT)WBEM_E_OUT_OF_MEMORY:		return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_OUT_OF_MEMORY", hr));
+			case (HRESULT)WBEM_E_TRANSPORT_FAILURE:	return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_TRANSPORT_FAILURE", hr));
+			case (HRESULT)WBEM_E_LOCAL_CREDENTIALS:	return tl::unexpected(WmiException("Error initializing IWbemServices: WBEM_E_LOCAL_CREDENTIALS", hr));
+			default:								return tl::unexpected(WmiException("Error initializing IWbemServices: Unknown Error", hr));
 		}
 	}
 
 	//Set authentication proxy
-	hr = CoSetProxyBlanket(pServices, 
+	hr = CoSetProxyBlanket(pServices.get(), 
 		RPC_C_AUTHN_DEFAULT, 
 		RPC_C_AUTHZ_NONE, 
 		COLE_DEFAULT_PRINCIPAL, 
@@ -88,37 +91,37 @@ IWbemServices* connect(IWbemLocator *pLocator, const std::string& path)
 	{
 		switch(hr)
 		{
-			case E_INVALIDARG:	throw WmiException("Coult not set proxy blanket: E_INVALIDARG", hr);
-			default:			throw WmiException("Coult not set proxy blanket: Unknown Error", hr);
+			case E_INVALIDARG:	return tl::unexpected(WmiException("Coult not set proxy blanket: E_INVALIDARG", hr));
+			default:			return tl::unexpected(WmiException("Coult not set proxy blanket: Unknown Error", hr));
 		}
 	}
 
 	return pServices;
 }
 
-IEnumWbemClassObject* execute(IWbemServices *pServices, const string &q)
+tl::expected<wil::com_ptr_nothrow<IEnumWbemClassObject>, WmiException> execute(IWbemServices *pServices, const string &q)
 {
-	IEnumWbemClassObject *pClassObject;
+	wil::com_ptr_nothrow<IEnumWbemClassObject> pClassObject;
 	HRESULT hr = pServices->ExecQuery(_bstr_t("WQL"), _bstr_t(q.c_str()), WBEM_FLAG_RETURN_IMMEDIATELY|WBEM_FLAG_FORWARD_ONLY, nullptr, &pClassObject);
 	if(FAILED(hr))
 	{
 		switch(hr)
 		{
-			case (HRESULT)WBEM_E_ACCESS_DENIED:		throw WmiException("Error executing query: WBEM_E_ACCESS_DENIED", hr);
-			case (HRESULT)WBEM_E_FAILED:			throw WmiException("Error executing query: WBEM_E_FAILED", hr);
-			case (HRESULT)WBEM_E_INVALID_CLASS:		throw WmiException("Error executing query: WBEM_E_INVALID_CLASS", hr);
-			case (HRESULT)WBEM_E_INVALID_PARAMETER:	throw WmiException("Error executing query: WBEM_E_INVALID_PARAMETER", hr);
-			case (HRESULT)WBEM_E_OUT_OF_MEMORY:		throw WmiException("Error executing query: WBEM_E_OUT_OF_MEMORY", hr);
-			case (HRESULT)WBEM_E_SHUTTING_DOWN:		throw WmiException("Error executing query: WBEM_E_SHUTTING_DOWN", hr);
-			case (HRESULT)WBEM_E_TRANSPORT_FAILURE:	throw WmiException("Error executing query: WBEM_E_TRANSPORT_FAILURE", hr);
-			default:								throw WmiException("Error executing query: Unknown Error", hr);
+			case (HRESULT)WBEM_E_ACCESS_DENIED:		return tl::unexpected(WmiException("Error executing query: WBEM_E_ACCESS_DENIED", hr));
+			case (HRESULT)WBEM_E_FAILED:			return tl::unexpected(WmiException("Error executing query: WBEM_E_FAILED", hr));
+			case (HRESULT)WBEM_E_INVALID_CLASS:		return tl::unexpected(WmiException("Error executing query: WBEM_E_INVALID_CLASS", hr));
+			case (HRESULT)WBEM_E_INVALID_PARAMETER:	return tl::unexpected(WmiException("Error executing query: WBEM_E_INVALID_PARAMETER", hr));
+			case (HRESULT)WBEM_E_OUT_OF_MEMORY:		return tl::unexpected(WmiException("Error executing query: WBEM_E_OUT_OF_MEMORY", hr));
+			case (HRESULT)WBEM_E_SHUTTING_DOWN:		return tl::unexpected(WmiException("Error executing query: WBEM_E_SHUTTING_DOWN", hr));
+			case (HRESULT)WBEM_E_TRANSPORT_FAILURE:	return tl::unexpected(WmiException("Error executing query: WBEM_E_TRANSPORT_FAILURE", hr));
+			default:								return tl::unexpected(WmiException("Error executing query: Unknown Error", hr));
 		}
 	}
 
 	return pClassObject;
 }
 
-void foreachObject(IEnumWbemClassObject *pClassObject, function<bool(IWbemClassObject*)> fn)
+tl::expected<void, WmiException> foreachObject(IEnumWbemClassObject *pClassObject, function<tl::expected<bool, WmiException>(IWbemClassObject*)> fn)
 {
 	bool cont = true;
 	HRESULT hr = WBEM_S_NO_ERROR;
@@ -127,7 +130,7 @@ void foreachObject(IEnumWbemClassObject *pClassObject, function<bool(IWbemClassO
 	while(cont && hr == WBEM_S_NO_ERROR)
 	{
 		ULONG uReturned = 0;
-		IWbemClassObject *apObj;
+		wil::com_ptr_nothrow<IWbemClassObject> apObj;
 		hr = pClassObject->Next(WBEM_INFINITE, 1, &apObj, &uReturned);
 
 		if(FAILED(hr))
@@ -135,24 +138,27 @@ void foreachObject(IEnumWbemClassObject *pClassObject, function<bool(IWbemClassO
 			switch(hr)
 			{
 				case WBEM_S_FALSE: break;
-				case (HRESULT)WBEM_E_INVALID_PARAMETER:	throw WmiException("Error getting next element: WBEM_E_INVALID_PARAMETER", hr);
-				case (HRESULT)WBEM_E_OUT_OF_MEMORY:		throw WmiException("Error getting next element: WBEM_E_OUT_OF_MEMORY", hr);
-				case (HRESULT)WBEM_E_UNEXPECTED:		throw WmiException("Error getting next element: WBEM_E_UNEXPECTED", hr);
-				case (HRESULT)WBEM_E_TRANSPORT_FAILURE:	throw WmiException("Error getting next element: WBEM_E_TRANSPORT_FAILURE", hr);
-				case WBEM_S_TIMEDOUT:					throw WmiException("Error getting next element: WBEM_S_TIMEDOUT", hr);
-				default:								throw WmiException("Error getting next element: Unknown Error", hr);
+				case (HRESULT)WBEM_E_INVALID_PARAMETER:	return tl::unexpected(WmiException("Error getting next element: WBEM_E_INVALID_PARAMETER", hr));
+				case (HRESULT)WBEM_E_OUT_OF_MEMORY:		return tl::unexpected(WmiException("Error getting next element: WBEM_E_OUT_OF_MEMORY", hr));
+				case (HRESULT)WBEM_E_UNEXPECTED:		return tl::unexpected(WmiException("Error getting next element: WBEM_E_UNEXPECTED", hr));
+				case (HRESULT)WBEM_E_TRANSPORT_FAILURE:	return tl::unexpected(WmiException("Error getting next element: WBEM_E_TRANSPORT_FAILURE", hr));
+				case WBEM_S_TIMEDOUT:					return tl::unexpected(WmiException("Error getting next element: WBEM_S_TIMEDOUT", hr));
+				default:								return tl::unexpected(WmiException("Error getting next element: Unknown Error", hr));
 			}
 		}
 
 		if(uReturned == 1)
 		{
-			cont = (cont && fn(apObj));
-			apObj->Release();
+			auto result = fn(apObj.get());
+			if(!result) return tl::unexpected(result.error());
+			cont = *result;
 		}
 	}
+
+	return {};
 }
 
-wstring convertVariant(const VARIANT &value)
+tl::expected<wstring, WmiException> convertVariant(const VARIANT &value)
 {
 	bool handled = true;
 	std::wstringstream ss;
@@ -259,22 +265,22 @@ wstring convertVariant(const VARIANT &value)
 		}
 		
 		
-		case VT_CY:				throw WmiException("Data type not yet supported: VT_CY", value.vt);
-		case VT_DATE:			throw WmiException("Data type not yet supported: VT_DATE", value.vt);
-		case VT_DISPATCH:		throw WmiException("Data type not yet supported: VT_DISPATCH", value.vt);
-		case VT_ERROR:			throw WmiException("Data type not yet supported: VT_ERROR", value.vt);
-		case VT_VARIANT:		throw WmiException("Data type not yet supported: VT_VARIANT", value.vt);
-		case VT_UNKNOWN:		throw WmiException("Data type not yet supported: VT_UNKNOWN", value.vt);
-		case VT_HRESULT:		throw WmiException("Data type not yet supported: VT_HRESULT", value.vt);
-		case VT_PTR:			throw WmiException("Data type not yet supported: VT_PTR", value.vt);
-		case VT_SAFEARRAY:		throw WmiException("Data type not yet supported: VT_SAFEARRAY", value.vt);
-		case VT_CARRAY:			throw WmiException("Data type not yet supported: VT_CARRAY", value.vt);
-		case VT_USERDEFINED:	throw WmiException("Data type not yet supported: VT_USERDEFINED", value.vt);
-		case VT_RECORD:			throw WmiException("Data type not yet supported: VT_RECORD", value.vt);
-		case VT_INT_PTR:		throw WmiException("Data type not yet supported: VT_INT_PTR", value.vt);
-		case VT_UINT_PTR:		throw WmiException("Data type not yet supported: VT_UINT_PTR", value.vt);
-		case VT_LPSTR:			throw WmiException("Data type not yet supported: VT_LPSTR", value.vt);
-		case VT_LPWSTR:			throw WmiException("Data type not yet supported: VT_LPWSTR", value.vt);
+		case VT_CY:				return tl::unexpected(WmiException("Data type not yet supported: VT_CY", value.vt));
+		case VT_DATE:			return tl::unexpected(WmiException("Data type not yet supported: VT_DATE", value.vt));
+		case VT_DISPATCH:		return tl::unexpected(WmiException("Data type not yet supported: VT_DISPATCH", value.vt));
+		case VT_ERROR:			return tl::unexpected(WmiException("Data type not yet supported: VT_ERROR", value.vt));
+		case VT_VARIANT:		return tl::unexpected(WmiException("Data type not yet supported: VT_VARIANT", value.vt));
+		case VT_UNKNOWN:		return tl::unexpected(WmiException("Data type not yet supported: VT_UNKNOWN", value.vt));
+		case VT_HRESULT:		return tl::unexpected(WmiException("Data type not yet supported: VT_HRESULT", value.vt));
+		case VT_PTR:			return tl::unexpected(WmiException("Data type not yet supported: VT_PTR", value.vt));
+		case VT_SAFEARRAY:		return tl::unexpected(WmiException("Data type not yet supported: VT_SAFEARRAY", value.vt));
+		case VT_CARRAY:			return tl::unexpected(WmiException("Data type not yet supported: VT_CARRAY", value.vt));
+		case VT_USERDEFINED:	return tl::unexpected(WmiException("Data type not yet supported: VT_USERDEFINED", value.vt));
+		case VT_RECORD:			return tl::unexpected(WmiException("Data type not yet supported: VT_RECORD", value.vt));
+		case VT_INT_PTR:		return tl::unexpected(WmiException("Data type not yet supported: VT_INT_PTR", value.vt));
+		case VT_UINT_PTR:		return tl::unexpected(WmiException("Data type not yet supported: VT_UINT_PTR", value.vt));
+		case VT_LPSTR:			return tl::unexpected(WmiException("Data type not yet supported: VT_LPSTR", value.vt));
+		case VT_LPWSTR:			return tl::unexpected(WmiException("Data type not yet supported: VT_LPWSTR", value.vt));
 		case VT_BYREF:
 			//for local use only
 			break;
@@ -285,13 +291,13 @@ wstring convertVariant(const VARIANT &value)
 	
 	if(!handled)
 	{
-		throw WmiException("Unknown data type", value.vt);
+		return tl::unexpected(WmiException("Unknown data type", value.vt));
 	}
 
 	return ss.str();
 }
 
-void foreachProperty(IWbemClassObject *object, function<bool(const wstring&, const std::wstring&)> fn)
+tl::expected<void, WmiException> foreachProperty(IWbemClassObject *object, function<bool(const wstring&, const std::wstring&)> fn)
 {
 	SAFEARRAY *psaNames = nullptr;
     HRESULT hr = object->GetNames(nullptr, WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY, nullptr, &psaNames);
@@ -300,10 +306,10 @@ void foreachProperty(IWbemClassObject *object, function<bool(const wstring&, con
     {
 		switch(hr)
 		{
-			case (HRESULT)WBEM_E_FAILED:			throw WmiException("Could not get properties: WBEM_E_FAILED", hr);
-			case (HRESULT)WBEM_E_INVALID_PARAMETER:	throw WmiException("Could not get properties: WBEM_E_INVALID_PARAMETER", hr);
-			case (HRESULT)WBEM_E_OUT_OF_MEMORY:		throw WmiException("Could not get properties: WBEM_E_OUT_OF_MEMORY", hr);
-			default:								throw WmiException("Could not get properties: WBEM_E_FAILED", hr);
+			case (HRESULT)WBEM_E_FAILED:			return tl::unexpected(WmiException("Could not get properties: WBEM_E_FAILED", hr));
+			case (HRESULT)WBEM_E_INVALID_PARAMETER:	return tl::unexpected(WmiException("Could not get properties: WBEM_E_INVALID_PARAMETER", hr));
+			case (HRESULT)WBEM_E_OUT_OF_MEMORY:		return tl::unexpected(WmiException("Could not get properties: WBEM_E_OUT_OF_MEMORY", hr));
+			default:								return tl::unexpected(WmiException("Could not get properties: WBEM_E_FAILED", hr));
 		}
     }
 
@@ -318,12 +324,13 @@ void foreachProperty(IWbemClassObject *object, function<bool(const wstring&, con
 
 		if(FAILED(hr))
 		{
+			SafeArrayDestroy(psaNames);
 			switch(hr)
 			{
-				case DISP_E_BADINDEX:	throw WmiException("Could not get name from SafeArray: DISP_E_BADINDEX", hr);
-				case E_INVALIDARG:		throw WmiException("Could not get name from SafeArray: E_INVALIDARG", hr);
-				case E_OUTOFMEMORY:		throw WmiException("Could not get name from SafeArray: E_OUTOFMEMORY", hr);
-				default:				throw WmiException("Could not get name from SafeArray: Unknown Error", hr);
+				case DISP_E_BADINDEX:	return tl::unexpected(WmiException("Could not get name from SafeArray: DISP_E_BADINDEX", hr));
+				case E_INVALIDARG:		return tl::unexpected(WmiException("Could not get name from SafeArray: E_INVALIDARG", hr));
+				case E_OUTOFMEMORY:		return tl::unexpected(WmiException("Could not get name from SafeArray: E_OUTOFMEMORY", hr));
+				default:				return tl::unexpected(WmiException("Could not get name from SafeArray: Unknown Error", hr));
 			}
 		}
 
@@ -333,94 +340,72 @@ void foreachProperty(IWbemClassObject *object, function<bool(const wstring&, con
 		
 		if(FAILED(hr))
 		{
+			SysFreeString(propName);
+			SafeArrayDestroy(psaNames);
 			switch(hr)
 			{
-				case (HRESULT)WBEM_E_FAILED:			throw WmiException("Could not get property: WBEM_E_FAILED", hr);
-				case (HRESULT)WBEM_E_INVALID_PARAMETER:	throw WmiException("Could not get property: WBEM_E_INVALID_PARAMETER", hr);
-				case (HRESULT)WBEM_E_NOT_FOUND:			throw WmiException("Could not get property: WBEM_E_NOT_FOUND", hr);
-				case (HRESULT)WBEM_E_OUT_OF_MEMORY:		throw WmiException("Could not get property: WBEM_E_OUT_OF_MEMORY", hr);
-				default:								throw WmiException("Could not get property: Unknown Error", hr);
+				case (HRESULT)WBEM_E_FAILED:			return tl::unexpected(WmiException("Could not get property: WBEM_E_FAILED", hr));
+				case (HRESULT)WBEM_E_INVALID_PARAMETER:	return tl::unexpected(WmiException("Could not get property: WBEM_E_INVALID_PARAMETER", hr));
+				case (HRESULT)WBEM_E_NOT_FOUND:			return tl::unexpected(WmiException("Could not get property: WBEM_E_NOT_FOUND", hr));
+				case (HRESULT)WBEM_E_OUT_OF_MEMORY:		return tl::unexpected(WmiException("Could not get property: WBEM_E_OUT_OF_MEMORY", hr));
+				default:								return tl::unexpected(WmiException("Could not get property: Unknown Error", hr));
 			}
 		}
 		
-		bool cont;
-		try {
-			cont = fn(propName, convertVariant(value));
-		} catch (const WmiException &e) {
+		auto converted = convertVariant(value);
+		VariantClear(&value);
+
+		if(!converted)
+		{
 			wstring temp(propName);
-			throw WmiException(string("Can't convert parameter: ") + string(temp.begin(), temp.end()) + ": " + e.errorMessage, e.errorCode);
+			SysFreeString(propName);
+			SafeArrayDestroy(psaNames);
+			return tl::unexpected(WmiException(
+				string("Can't convert parameter: ") + string(temp.begin(), temp.end()) + ": " + converted.error().errorMessage,
+				converted.error().errorCode));
 		}
 
-		VariantClear(&value);
+		bool cont = fn(propName, *converted);
 		SysFreeString(propName);
 		if(!cont)break;
 	}
 
     SafeArrayDestroy(psaNames);
+	return {};
 }
 
-void Wmi::query(const string& q, const string& p, WmiResult &out)
+tl::expected<void, WmiException> Wmi::query(const string& q, const string& p, WmiResult &out)
 {
 	HRESULT hr = CoInitialize(nullptr);
 	if (FAILED(hr))
 	{
-		throw WmiException("The COM library is already initialized on this thread", hr);
+		return tl::unexpected(WmiException("The COM library is already initialized on this thread", hr));
 	}
+	wil::unique_couninitialize_call coinit_guard;
 
-	IWbemLocator *pLocator;
-	IWbemServices *pServices;
-	IEnumWbemClassObject *pClassObject;
+	auto locator = createWbemLocator();
+	if (!locator) return tl::unexpected(locator.error());
 
-	//Create the WBEM locator
-	try {
-		pLocator = createWbemLocator();
-	} catch (const WmiException &) {
-		CoUninitialize();
-		throw;
-	}
+	auto services = connect(locator->get(), p);
+	if (!services) return tl::unexpected(services.error());
 
-	//Open connection to computer
-	try {
-		pServices = connect(pLocator, p);
-	} catch (const WmiException &) {
-		pLocator->Release(); 
-		CoUninitialize();
-		throw;
-	}
+	auto classObject = execute(services->get(), q);
+	if (!classObject) return tl::unexpected(classObject.error());
 
-	//Execute the query
-	try {
-		pClassObject = execute(pServices, q);
-	} catch (const WmiException &) {
-		pServices->Release();
-		pLocator->Release(); 
-		CoUninitialize();
-		throw;
-	}
-
-	try {
-		std::size_t index = 0;
-		
-		foreachObject(pClassObject, [&out,&index](IWbemClassObject *object)
+	std::size_t index = 0;
+	auto result = foreachObject(classObject->get(), [&out,&index](IWbemClassObject *object)
+		-> tl::expected<bool, WmiException>
+	{
+		auto prop_result = foreachProperty(object, [&out,index](const wstring &name, const std::wstring &value)
 		{
-			foreachProperty(object, [&out,index](const wstring &name, const std::wstring &value)
-			{
-				out.set(index,name, value);
-				return true;
-			});
-			index++;
+			out.set(index, name, value);
 			return true;
 		});
-	} catch (const WmiException &) {
-		pServices->Release();
-		pLocator->Release(); 
-		CoUninitialize();
-		throw;
-	}
-	
-	pClassObject->Release();
+		if (!prop_result) return tl::unexpected(prop_result.error());
+		index++;
+		return true;
+	});
 
-	pServices->Release();
-	pLocator->Release(); 
-	CoUninitialize();
+	if (!result) return tl::unexpected(result.error());
+	return {};
 }
