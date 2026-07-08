@@ -1,9 +1,9 @@
-//=============================================================================
-// Copyright (c) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
+
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief System info reader implementation
-//=============================================================================
 
 #include "system_info_reader.h"
 
@@ -81,7 +81,7 @@ namespace
     /// @return The JSON string representation.
     std::string DumpJson(const rapidjson::Value& value)
     {
-        rapidjson::StringBuffer buffer;
+        rapidjson::StringBuffer                    buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         value.Accept(writer);
         return std::string(buffer.GetString(), buffer.GetSize());

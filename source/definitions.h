@@ -1,9 +1,9 @@
-//=============================================================================
-// Copyright (c) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
+
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief JSON key definitions
-//=============================================================================
 
 #ifndef SYSTEM_INFO_UTILS_SOURCE_DEFINITIONS_H_
 #define SYSTEM_INFO_UTILS_SOURCE_DEFINITIONS_H_
@@ -91,8 +91,8 @@ static constexpr const char* kNodeStringHasPermission           = "hasPermission
 static constexpr const char* kNodeStringStatusCode              = "statusCode";
 static constexpr const char* kNodeStringPowerDpmWritable        = "powerDpmWritable";
 static constexpr const char* kNodeStringDrivers                 = "drivers";
-static constexpr const char* kNodeStringDriverIndex              = "driverIndex";
-static constexpr const char* kNodeStringPcis                     = "pcis";
+static constexpr const char* kNodeStringDriverIndex             = "driverIndex";
+static constexpr const char* kNodeStringPcis                    = "pcis";
 static constexpr const char* kNodeStringDevDriver               = "devdriver";
 static constexpr const char* kNodeStringTag                     = "tag";
 static constexpr const char* kNodeStringLinux                   = "linux";

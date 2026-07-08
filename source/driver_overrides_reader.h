@@ -1,12 +1,12 @@
-//=============================================================================
-// Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
+
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief Driver Overrides reader definition
 ///
 /// The Driver Overrides Reader class is responsible for parsing the Driver Overrides JSON data.
 /// Settings and Experiments are filtered to include only those that the user has modified.
-//=============================================================================
 
 #ifndef SYSTEM_INFO_UTILS_SOURCE_DRIVER_OVERRIDES_READER_H_
 #define SYSTEM_INFO_UTILS_SOURCE_DRIVER_OVERRIDES_READER_H_

@@ -1,9 +1,9 @@
-//=============================================================================
-// Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
+
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief Definitions for Driver Override RDF chunk.
-//=============================================================================
 
 #ifndef DRIVER_OVERRIDES_UTILS_SOURCE_DRIVER_OVERRIDES_DEFINITIONS_H_
 #define DRIVER_OVERRIDES_UTILS_SOURCE_DRIVER_OVERRIDES_DEFINITIONS_H_
@@ -30,4 +30,4 @@ namespace driver_overrides_utils
     static constexpr const char* kNodeStringSupported           = "Supported";
 
 }  // namespace driver_overrides_utils
-#endif  // DRIVER_OVERRIDES_UTILS_SOURCE_DRIVER_OVERRIDES_DEFINITIONS_H_
+#endif

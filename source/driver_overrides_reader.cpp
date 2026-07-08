@@ -1,9 +1,9 @@
-//=============================================================================
-// Copyright (c) 2024-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
+
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief Driver Overrides reader implementation
-//=============================================================================
 
 #include "driver_overrides_reader.h"
 
@@ -121,7 +121,7 @@ namespace driver_overrides_utils
 
             if (processed_doc_.MemberCount() > 0)
             {
-                rapidjson::StringBuffer buffer;
+                rapidjson::StringBuffer                    buffer;
                 rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
                 processed_doc_.Accept(writer);
                 out_processed_json_text = std::string(buffer.GetString(), buffer.GetSize());
@@ -283,8 +283,8 @@ namespace driver_overrides_utils
         /// @return True if parsing was successful, false if it failed.
         virtual bool ParseSetting(const rapidjson::Value& driver_overrides_json)
         {
-            bool result = true;
-            auto& alloc = processed_doc_.GetAllocator();
+            bool  result = true;
+            auto& alloc  = processed_doc_.GetAllocator();
 
             if ((DoesNodeExist(driver_overrides_json, kNodeStringSupported)) && (!driver_overrides_json[kNodeStringSupported].GetBool()))
             {
@@ -315,10 +315,10 @@ namespace driver_overrides_utils
                     }
                     else
                     {
-                        auto& components     = GetOrCreateMember(processed_doc_, kNodeStringComponents, alloc);
-                        auto& component      = GetOrCreateMember(components, current_component_name_.c_str(), alloc);
-                        auto& structures     = GetOrCreateMember(component, kNodeStringStructures, alloc);
-                        auto& arr            = GetOrCreateArray(structures, current_structure_name_.c_str(), alloc);
+                        auto& components = GetOrCreateMember(processed_doc_, kNodeStringComponents, alloc);
+                        auto& component  = GetOrCreateMember(components, current_component_name_.c_str(), alloc);
+                        auto& structures = GetOrCreateMember(component, kNodeStringStructures, alloc);
+                        auto& arr        = GetOrCreateArray(structures, current_structure_name_.c_str(), alloc);
                         arr.PushBack(json_settings_node, alloc);
                     }
                 }
@@ -332,9 +332,9 @@ namespace driver_overrides_utils
         }
 
     protected:
-        bool               is_driver_experiments_ = false;
-        std::string        current_component_name_;
-        std::string        current_structure_name_;
+        bool                is_driver_experiments_ = false;
+        std::string         current_component_name_;
+        std::string         current_structure_name_;
         rapidjson::Document processed_doc_;
     };
 
@@ -445,7 +445,7 @@ namespace driver_overrides_utils
 
         return result;
     }
-#endif  // RDF_CXX_BINDINGS
+#endif
     bool DriverOverridesReader::IsChunkPresent(rdfChunkFile* file)
     {
         bool result = false;
@@ -502,5 +502,5 @@ namespace driver_overrides_utils
         return result;
     }
 
-#endif  // DRIVER_OVERRIDES_ENABLE_RDF
+#endif
 }  // namespace driver_overrides_utils
