@@ -1,9 +1,9 @@
-//=============================================================================
-// Copyright (c) 2022-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: MIT
+
 /// @author AMD Developer Tools Team
 /// @file
 /// @brief System info reader definition
-//=============================================================================
 
 #ifndef SYSTEM_INFO_UTILS_SOURCE_SYSTEM_INFO_READER_H_
 #define SYSTEM_INFO_UTILS_SOURCE_SYSTEM_INFO_READER_H_
@@ -176,12 +176,12 @@ namespace system_info_utils
     /// @brief Structure containing fields used to identify a GPU device connected to the system.
     struct GpuInfo
     {
-        std::string              name;          ///< The GPU identification name string.
-        PciInfo                  pci;           ///< The GPU PCI connection info.
-        AsicInfo                 asic;          ///< The hardware's ASIC info.
-        MemoryInfo               memory;        ///< The hardware's memory info.
-        SoftwareVersion          big_sw;        ///< The 'Big Software' release version number info.
-        std::optional<uint32_t>  driver_index;  ///< Index into the drivers array identifying the driver for this GPU.
+        std::string             name;          ///< The GPU identification name string.
+        PciInfo                 pci;           ///< The GPU PCI connection info.
+        AsicInfo                asic;          ///< The hardware's ASIC info.
+        MemoryInfo              memory;        ///< The hardware's memory info.
+        SoftwareVersion         big_sw;        ///< The 'Big Software' release version number info.
+        std::optional<uint32_t> driver_index;  ///< Index into the drivers array identifying the driver for this GPU.
     };
 
     /// @brief Structure defining a system process
@@ -202,21 +202,23 @@ namespace system_info_utils
         std::string                packaging_version;            ///< The driver packaging version string.
         std::optional<std::string> packaging_date;               ///< The driver packaging date. (YY/MM/DD) (optional as it may not be available).
         std::string                software_version;             ///< The driver software version string. (Windows platform specific)
-        std::optional<PciInfo>     pci;   ///< The primary PCI location of a device associated with this driver (present when resolved; kept for backward compatibility).
-        std::vector<PciInfo>       pcis;  ///< All PCI locations for GPUs sharing this driver installation. When multiple GPUs use the same driver (after deduplication), each GPU's BDF appears here. `pci` holds the first entry from this list.
+        std::optional<PciInfo>
+            pci;  ///< The primary PCI location of a device associated with this driver (present when resolved; kept for backward compatibility).
+        std::vector<PciInfo>
+            pcis;  ///< All PCI locations for GPUs sharing this driver installation. When multiple GPUs use the same driver (after deduplication), each GPU's BDF appears here. `pci` holds the first entry from this list.
     };
 
     /// @brief Structure containing fields used to identify the target system's hardware and software.
     struct SystemInfo
     {
-        Version                  version;    ///< A version number to identify the System Info structure revision number.
-        DriverInfo               driver;     ///< A field containing GPU device driver info.
-        std::vector<DriverInfo>  drivers;    ///< A vector of all available drivers identified for each device in the system.
-        DevDriverInfo            devdriver;  ///< A field containing Developer Driver info.
-        OsInfo                   os;         ///< A field containing the system's OS info.
-        std::vector<CpuInfo>     cpus;       ///< A vector of all CPU devices identified in the system.
-        std::vector<GpuInfo>     gpus;       ///< A vector of all GPU devices identified in the system.
-        std::vector<Process>     processes;  ///< A vector of running processes identified in the system.
+        Version                 version;    ///< A version number to identify the System Info structure revision number.
+        DriverInfo              driver;     ///< A field containing GPU device driver info.
+        std::vector<DriverInfo> drivers;    ///< A vector of all available drivers identified for each device in the system.
+        DevDriverInfo           devdriver;  ///< A field containing Developer Driver info.
+        OsInfo                  os;         ///< A field containing the system's OS info.
+        std::vector<CpuInfo>    cpus;       ///< A vector of all CPU devices identified in the system.
+        std::vector<GpuInfo>    gpus;       ///< A vector of all GPU devices identified in the system.
+        std::vector<Process>    processes;  ///< A vector of running processes identified in the system.
     };
 
     /// @brief Parses system info JSON representation

@@ -26,6 +26,17 @@ if (WIN32)
     target_link_libraries(${PROJECT_NAME} PUBLIC Netapi32 Secur32)
 endif()
 
+if (SYSTEM_INFO_BUILD_WRITER)
+    target_sources(${PROJECT_NAME}
+            PUBLIC
+            system_info_writer.h
+            PRIVATE
+            system_info_writer.cpp)
+    target_link_libraries(${PROJECT_NAME} PUBLIC devdriver ddApi ddGpuInfo)
+    if (WIN32)
+        target_link_libraries(${PROJECT_NAME} PUBLIC wmi)
+    endif ()
+endif ()
 target_include_directories(${PROJECT_NAME}
         PUBLIC .)
 target_include_directories(${PROJECT_NAME}
